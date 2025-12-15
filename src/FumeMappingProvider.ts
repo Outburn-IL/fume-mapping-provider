@@ -71,23 +71,39 @@ export class FumeMappingProvider {
 
   /**
    * Refresh a specific user mapping by key
+   * @param key - The mapping key to refresh
+   * @param mapping - Optional mapping to use directly (avoids server roundtrip)
+   * @returns The refreshed mapping or null if not found
    */
-  async refreshUserMapping(key: string): Promise<UserMapping | null> {
+  async refreshUserMapping(key: string, mapping?: UserMapping | null): Promise<UserMapping | null> {
     /* istanbul ignore if */
     if (!this.userProvider) {
       return null;
     }
     
-    const mapping = await this.userProvider.refreshMapping(key);
-    if (mapping) {
-      this.userMappingsCache.set(key, mapping);
+    // If mapping provided, use it directly (optimistic update)
+    if (mapping !== undefined) {
+      if (mapping) {
+        this.userMappingsCache.set(key, mapping);
+        this.logger?.debug?.(`Updated user mapping cache with provided value: ${key}`);
+      } else {
+        this.userMappingsCache.delete(key);
+        this.logger?.debug?.(`Removed user mapping from cache: ${key}`);
+      }
+      return mapping;
+    }
+    
+    // Otherwise fetch from source
+    const fetchedMapping = await this.userProvider.refreshMapping(key);
+    if (fetchedMapping) {
+      this.userMappingsCache.set(key, fetchedMapping);
       this.logger?.debug?.(`Refreshed user mapping: ${key}`);
     } else {
       this.userMappingsCache.delete(key);
       this.logger?.debug?.(`User mapping no longer exists: ${key}`);
     }
     
-    return mapping;
+    return fetchedMapping;
   }
 
   // ========== USER MAPPING API ==========
