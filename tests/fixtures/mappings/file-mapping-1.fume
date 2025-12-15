@@ -1,0 +1,4 @@
+Instance: id
+InstanceOf: Patient
+* active = true
+* name.text = name

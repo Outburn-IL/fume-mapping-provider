@@ -1,0 +1,50 @@
+spring:
+  datasource:
+    url: 'jdbc:h2:mem:test_mem'
+    username: sa
+    password: null
+    driverClassName: org.h2.Driver
+  jpa:
+    properties:
+      hibernate.format_sql: false
+      hibernate.show_sql: false
+      hibernate.dialect: ca.uhn.fhir.jpa.model.dialect.HapiFhirH2Dialect
+      hibernate.search.enabled: false
+
+hapi:
+  fhir:
+    ### This is the FHIR version. Choose between, DSTU2, DSTU3, R4 or R5
+    fhir_version: R4
+    ### This is the base URL for the FHIR server
+    server_address: http://localhost:8081/fhir
+    ### Enable/disable CORS
+    cors:
+      allow_Credentials: true
+      allowed_origin:
+        - '*'
+    ### Allows clients to perform updates as creates (PUT with client-defined IDs)
+    allow_update_create: true
+    ### Allow resources to be deleted via DELETE
+    allow_delete: true
+    ### Enable resource existence checks
+    enforce_referential_integrity_on_write: false
+    enforce_referential_integrity_on_delete: false
+    ### Auto-create placeholder resources when processing references
+    auto_create_placeholder_reference_targets: false
+    ### Subscription settings
+    subscription:
+      resthook_enabled: false
+      websocket_enabled: false
+    ### Validation
+    validation:
+      requests_enabled: false
+      responses_enabled: false
+    ### Search result behavior
+    default_page_size: 20
+    max_page_size: 200
+    ### Disable search result caching for tests
+    reuse_cached_search_results_millis: 0
+    ### Advanced indexing settings for immediate search availability
+    advanced_lucene_indexing: false
+    ### Binary storage
+    binary_storage_enabled: false

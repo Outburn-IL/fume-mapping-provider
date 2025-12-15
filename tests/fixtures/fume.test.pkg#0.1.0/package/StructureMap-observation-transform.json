@@ -1,0 +1,58 @@
+{
+  "resourceType": "StructureMap",
+  "id": "observation-transform",
+  "url": "http://test.fume.health/StructureMap/observation-transform",
+  "name": "ObservationTransform",
+  "title": "Observation Transform",
+  "status": "active",
+  "useContext": [
+    {
+      "code": {
+        "system": "http://snomed.info/sct",
+        "code": "706594005",
+        "display": "Information system software"
+      },
+      "valueCodeableConcept": {
+        "coding": [
+          {
+            "system": "http://codes.fume.health",
+            "code": "fume",
+            "display": "FUME"
+          }
+        ],
+        "text": "FUME"
+      }
+    }
+  ],
+  "group": [
+    {
+      "name": "fumeMapping",
+      "typeMode": "none",
+      "input": [
+        {
+          "name": "input",
+          "mode": "source"
+        }
+      ],
+      "rule": [
+        {
+          "extension": [
+            {
+              "url": "http://fhir.fume.health/StructureDefinition/mapping-expression",
+              "valueExpression": {
+                "language": "application/vnd.outburn.fume",
+                "expression": "$output = { code: $input.code, value: $input.valueQuantity }"
+              }
+            }
+          ],
+          "name": "evaluate",
+          "source": [
+            {
+              "context": "input"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "resourceType": "StructureMap",
+  "id": "patient-to-bundle",
+  "url": "http://test.fume.health/StructureMap/patient-to-bundle",
+  "name": "PatientToBundle",
+  "title": "Patient to Bundle Transform",
+  "status": "active",
+  "useContext": [
+    {
+      "code": {
+        "system": "http://snomed.info/sct",
+        "code": "706594005",
+        "display": "Information system software"
+      },
+      "valueCodeableConcept": {
+        "coding": [
+          {
+            "system": "http://codes.fume.health",
+            "code": "fume",
+            "display": "FUME"
+          }
+        ],
+        "text": "FUME"
+      }
+    }
+  ],
+  "group": [
+    {
+      "name": "fumeMapping",
+      "typeMode": "none",
+      "input": [
+        {
+          "name": "input",
+          "mode": "source"
+        }
+      ],
+      "rule": [
+        {
+          "extension": [
+            {
+              "url": "http://fhir.fume.health/StructureDefinition/mapping-expression",
+              "valueExpression": {
+                "language": "application/vnd.outburn.fume",
+                "expression": "$output = { resourceType: 'Bundle', type: 'collection', entry: [{ resource: $input }] }"
+              }
+            }
+          ],
+          "name": "evaluate",
+          "source": [
+            {
+              "context": "input"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

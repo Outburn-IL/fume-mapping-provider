@@ -1,0 +1,4 @@
+// This file mapping has same key as a server mapping to test collision
+InstanceOf: Bundle
+* type = 'batch'
+* entry.resource = $resolve('Patient/123')

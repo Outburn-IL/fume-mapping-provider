@@ -1,0 +1,4 @@
+InstanceOf: Observation
+* status = final
+* code.text = 'test'
+* effectiveDateTime = $now()
