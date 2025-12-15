@@ -1,0 +1,30 @@
+# Source files
+src/
+
+# Tests
+tests/
+**/*.test.ts
+coverage/
+
+# Configuration
+tsconfig.json
+jest.config.js
+jest.integration.config.ts
+.eslintrc.js
+
+# CI/CD
+.github/
+
+# Development
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation
+CONTRIBUTING.md
+CHANGELOG.md
+
+# Git
+.github/
+.gitignore
