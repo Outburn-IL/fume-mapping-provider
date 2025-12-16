@@ -144,6 +144,84 @@ const mappings = await provider.getPackageMappings({
 const metadata = await provider.getPackageMappingsMetadata();
 ```
 
+## Aliases API
+
+### Overview
+
+Aliases are simple key-value string mappings stored in a special ConceptMap resource on the FHIR server. Unlike mappings, aliases are:
+- **Server-only**: Not loaded from files or packages
+- **Consolidated**: Always served as a single object
+- **Cached**: Loaded once during initialization for fast access
+
+### Alias Resource Structure
+
+FUME aliases are stored in a ConceptMap resource with this specific `useContext`:
+
+```typescript
+{
+  code: {
+    system: "http://snomed.info/sct",
+    code: "706594005"
+  },
+  valueCodeableConcept: {
+    coding: [{
+      system: "http://codes.fume.health",
+      code: "fume"
+    }]
+  }
+}
+```
+
+The server is queried with: `GET [baseUrl]/ConceptMap?context=http://codes.fume.health|fume&name=FumeAliases`
+
+### Get Aliases
+
+```typescript
+// Get all aliases (fast, cached)
+const aliases = provider.getAliases();
+// Returns: { [key: string]: string }
+
+// Example:
+// {
+//   "patientSystemUrl": "http://example.com/patients",
+//   "defaultLanguage": "en-US",
+//   "apiVersion": "v1"
+// }
+```
+
+### Reload Aliases
+
+```typescript
+// Reload from server (updates cache)
+await provider.reloadAliases();
+```
+
+### Optimistic Updates
+
+```typescript
+// Register or update a single alias (no server roundtrip)
+provider.registerAlias('newKey', 'newValue');
+
+// Delete an alias from cache
+provider.deleteAlias('oldKey');
+```
+
+### Transforming Alias Resources
+
+```typescript
+// ConceptMap → Alias Object
+const aliases = FumeMappingProvider.conceptMapToAliasObject(conceptMap);
+
+// Alias Object → ConceptMap
+const conceptMap = FumeMappingProvider.aliasObjectToConceptMap(
+  aliases,
+  'http://example.com',  // canonical base URL
+  existingConceptMap     // optional: update existing resource
+);
+```
+
+## Package Mappings API
+
 ### Get by Identifier
 
 Automatically tries URL → ID → name in order, returns first match:
@@ -288,6 +366,18 @@ new FumeMappingProvider(config: FumeMappingProviderConfig)
 - `getPackageMappings(options?: GetPackageMappingOptions): Promise<PackageMapping[]>` - Get all package mappings
 - `getPackageMappingsMetadata(options?: GetPackageMappingOptions): Promise<PackageMappingMetadata[]>` - Get metadata only
 - `getPackageMapping(identifier: string, options?: GetPackageMappingOptions): Promise<PackageMapping | null>` - Get by identifier
+
+**Aliases (Cached, Fast):**
+- `reloadAliases(): Promise<void>` - Reload all aliases from server
+- `registerAlias(name: string, value: string): void` - Register/update a single alias (optimistic cache update)
+- `deleteAlias(name: string): void` - Delete a specific alias from cache
+- `getAliases(): AliasObject` - Get all cached aliases as single object
+
+**Static Converters:**
+- `FumeMappingProvider.structureMapToExpression(structureMap: StructureMap): string | null` - Extract FUME expression from StructureMap
+- `FumeMappingProvider.expressionToStructureMap(mappingId: string, expression: string, canonicalBaseUrl?: string): StructureMap` - Create StructureMap from expression
+- `FumeMappingProvider.conceptMapToAliasObject(conceptMap: ConceptMap): AliasObject` - Transform ConceptMap to alias object
+- `FumeMappingProvider.aliasObjectToConceptMap(aliases: AliasObject, canonicalBaseUrl?: string, existingConceptMap?: ConceptMap): ConceptMap` - Transform alias object to ConceptMap
 
 ### Configuration
 

@@ -152,6 +152,9 @@ export interface FumeMappingProviderConfig {
   
   /** Optional logger instance for structured logging */
   logger?: Logger;
+  
+  /** Canonical base URL for generated FHIR resources (default: 'http://example.com') */
+  canonicalBaseUrl?: string;
 }
 
 /**
@@ -160,4 +163,53 @@ export interface FumeMappingProviderConfig {
 export interface GetPackageMappingOptions {
   /** Filter by package context - supports string or FhirPackageIdentifier */
   packageContext?: string | FhirPackageIdentifier;
+}
+
+/**
+ * Alias object - key-value mappings
+ */
+export interface AliasObject {
+  [key: string]: string;
+}
+
+/**
+ * FHIR ConceptMap resource (simplified)
+ */
+export interface ConceptMap extends Resource {
+  resourceType: 'ConceptMap';
+  id?: string;
+  url?: string;
+  name?: string;
+  status?: string;
+  publisher?: string;
+  description?: string;
+  date?: string;
+  useContext?: Array<{
+    code?: {
+      system?: string;
+      code?: string;
+      display?: string;
+    };
+    valueCodeableConcept?: {
+      coding?: Array<{
+        system?: string;
+        code?: string;
+        display?: string;
+      }>;
+      text?: string;
+    };
+  }>;
+  group?: Array<{
+    source?: string;
+    target?: string;
+    element?: Array<{
+      code?: string;
+      display?: string;
+      target?: Array<{
+        code?: string;
+        display?: string;
+        equivalence?: string;
+      }>;
+    }>;
+  }>;
 }

@@ -8,15 +8,23 @@ export {
   PackageMapping,
   PackageMappingMetadata,
   StructureMap,
+  ConceptMap,
+  AliasObject,
   FumeMappingProviderConfig,
   GetPackageMappingOptions
 } from './types';
 
 // Export converters
-export { structureMapToExpression, expressionToStructureMap } from './converters';
+export {
+  structureMapToExpression,
+  expressionToStructureMap,
+  conceptMapToAliasObject,
+  aliasObjectToConceptMap
+} from './converters';
 
 // Export providers (for advanced usage)
 export {
   UserMappingProvider,
-  PackageMappingProvider
+  PackageMappingProvider,
+  AliasProvider
 } from './providers';

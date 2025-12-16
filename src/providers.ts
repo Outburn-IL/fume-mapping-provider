@@ -1,6 +1,6 @@
-import { UserMapping, PackageMapping, StructureMap, GetPackageMappingOptions } from './types';
+import { UserMapping, PackageMapping, StructureMap, GetPackageMappingOptions, ConceptMap, AliasObject } from './types';
 import { Logger } from '@outburn/types';
-import { structureMapToExpression } from './converters';
+import { structureMapToExpression, conceptMapToAliasObject } from './converters';
 
 /**
  * Validate that a StructureMap is a FUME mapping
@@ -414,5 +414,91 @@ export class PackageMappingProvider {
     }
 
     return null;
+  }
+}
+
+/**
+ * Validate that a ConceptMap is a FUME alias resource
+ * Must have the correct useContext
+ */
+function isFumeAliasResource(conceptMap: ConceptMap): boolean {
+  if (!conceptMap.useContext || conceptMap.useContext.length === 0) {
+    return false;
+  }
+  
+  return conceptMap.useContext.some(
+    ctx => ctx.code?.system === 'http://snomed.info/sct' &&
+           ctx.code?.code === '706594005' &&
+           ctx.valueCodeableConcept?.coding?.some(
+             coding => coding.system === 'http://codes.fume.health' && coding.code === 'fume'
+           )
+  );
+}
+
+/**
+ * Provider for aliases (server only)
+ * Handles loading and transforming FUME alias ConceptMap resources
+ */
+export class AliasProvider {
+  constructor(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    private fhirClient: any | undefined,
+    private logger?: Logger
+  ) {}
+
+  /**
+   * Load aliases from FHIR server
+   * @returns AliasObject with all aliases, or empty object if none found
+   */
+  async loadAliases(): Promise<AliasObject> {
+    /* istanbul ignore if */
+    if (!this.fhirClient) {
+      return {};
+    }
+    
+    try {
+      const serverUrl = this.fhirClient.getBaseUrl();
+      this.logger?.debug?.(`Loading aliases from FHIR server ${serverUrl}`);
+      
+      // Search for ConceptMap with name=FumeAliases and context parameter
+      const searchParams = {
+        name: 'FumeAliases',
+        context: 'http://codes.fume.health|fume'
+      };
+      
+      const resources = await this.fhirClient.search('ConceptMap', searchParams, { fetchAll: true, noCache: true });
+
+      if (!resources || !Array.isArray(resources) || resources.length === 0) {
+        this.logger?.debug?.('No alias ConceptMap found on server');
+        return {};
+      }
+      
+      // Filter client-side in case server ignores context parameter
+      const aliasResources = resources.filter((cm: ConceptMap) => isFumeAliasResource(cm));
+      
+      if (aliasResources.length === 0) {
+        this.logger?.debug?.('No alias ConceptMap with correct useContext found');
+        return {};
+      }
+      
+      if (aliasResources.length > 1) {
+        this.logger?.error?.(`Found ${aliasResources.length} alias ConceptMaps - expected exactly 1. Skipping alias loading.`);
+        return {};
+      }
+      
+      const conceptMap = aliasResources[0] as ConceptMap;
+      const aliases = conceptMapToAliasObject(conceptMap, this.logger);
+      
+      this.logger?.info?.(`Loaded ${Object.keys(aliases).length} alias(es) from server`);
+      return aliases;
+      
+    } catch (error) {
+      /* istanbul ignore next */
+      const serverUrl = this.fhirClient.getBaseUrl();
+      /* istanbul ignore next */
+      this.logger?.error?.(`Failed to load aliases from server ${serverUrl}:`, error);
+      /* istanbul ignore next */
+      return {};
+    }
   }
 }

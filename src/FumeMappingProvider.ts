@@ -1,6 +1,7 @@
-import { FumeMappingProviderConfig, UserMapping, UserMappingMetadata, PackageMapping, PackageMappingMetadata, GetPackageMappingOptions } from './types';
+import { FumeMappingProviderConfig, UserMapping, UserMappingMetadata, PackageMapping, PackageMappingMetadata, GetPackageMappingOptions, AliasObject, ConceptMap, StructureMap } from './types';
 import { Logger } from '@outburn/types';
-import { UserMappingProvider, PackageMappingProvider } from './providers';
+import { UserMappingProvider, PackageMappingProvider, AliasProvider } from './providers';
+import { conceptMapToAliasObject, aliasObjectToConceptMap, structureMapToExpression, expressionToStructureMap } from './converters';
 
 /**
  * Main orchestrator for FUME mappings from multiple sources
@@ -10,7 +11,9 @@ export class FumeMappingProvider {
   private logger?: Logger;
   private userProvider?: UserMappingProvider;
   private packageProvider?: PackageMappingProvider;
+  private aliasProvider?: AliasProvider;
   private userMappingsCache: Map<string, UserMapping> = new Map();
+  private cachedAliases: AliasObject = {};
 
   constructor(private config: FumeMappingProviderConfig) {
     this.logger = config.logger;
@@ -40,10 +43,19 @@ export class FumeMappingProvider {
         this.logger
       );
     }
+
+    // Alias provider (server only)
+    if (this.config.fhirClient) {
+      this.logger?.info?.('Initializing alias provider');
+      this.aliasProvider = new AliasProvider(
+        this.config.fhirClient,
+        this.logger
+      );
+    }
   }
 
   /**
-   * Initialize all providers (load user mappings into cache)
+   * Initialize all providers (load user mappings and aliases into cache)
    */
   async initialize(): Promise<void> {
     this.logger?.info?.('Initializing FUME Mapping Provider');
@@ -52,6 +64,12 @@ export class FumeMappingProvider {
       this.logger?.info?.('Loading user mappings');
       this.userMappingsCache = await this.userProvider.loadMappings();
       this.logger?.info?.(`Loaded ${this.userMappingsCache.size} user mapping(s)`);
+    }
+
+    if (this.aliasProvider) {
+      this.logger?.info?.('Loading aliases');
+      this.cachedAliases = await this.aliasProvider.loadAliases();
+      this.logger?.info?.(`Loaded ${Object.keys(this.cachedAliases).length} alias(es)`);
     }
   }
 
@@ -182,5 +200,100 @@ export class FumeMappingProvider {
     }
     
     return await this.packageProvider.getMapping(identifier, options);
+  }
+
+  // ========== ALIAS API ==========
+
+  /**
+   * Reload all aliases from server
+   */
+  async reloadAliases(): Promise<void> {
+    /* istanbul ignore if */
+    if (!this.aliasProvider) {
+      return;
+    }
+    
+    this.logger?.info?.('Reloading aliases');
+    this.cachedAliases = await this.aliasProvider.loadAliases();
+    this.logger?.info?.(`Reloaded ${Object.keys(this.cachedAliases).length} alias(es)`);
+  }
+
+  /**
+   * Register or update a single alias (optimistic cache update without server roundtrip)
+   * @param name - The alias name/key
+   * @param value - The alias value
+   */
+  registerAlias(name: string, value: string): void {
+    this.cachedAliases[name] = value;
+    this.logger?.debug?.(`Registered alias: ${name}`);
+  }
+
+  /**
+   * Delete a specific alias from the cache
+   * @param name - The alias name/key to delete
+   */
+  deleteAlias(name: string): void {
+    delete this.cachedAliases[name];
+    this.logger?.debug?.(`Deleted alias: ${name}`);
+  }
+
+  /**
+   * Get all cached aliases as a single object (lightning-fast - from cache)
+   * @returns The alias object with all key-value mappings
+   */
+  getAliases(): AliasObject {
+    return { ...this.cachedAliases };
+  }
+
+  // ========== ALIAS CONVERTERS ==========
+
+  /**
+   * Transform a ConceptMap resource into an alias object
+   * @param conceptMap - The ConceptMap resource
+   * @returns An alias object with key-value mappings
+   */
+  static conceptMapToAliasObject(conceptMap: ConceptMap): AliasObject {
+    return conceptMapToAliasObject(conceptMap);
+  }
+
+  /**
+   * Transform an alias object into a ConceptMap resource
+   * @param aliases - The alias object
+   * @param canonicalBaseUrl - Base URL for canonical references (defaults to example.com)
+   * @param existingConceptMap - Optional existing ConceptMap to update
+   * @returns A ConceptMap resource
+   */
+  static aliasObjectToConceptMap(
+    aliases: AliasObject,
+    canonicalBaseUrl?: string,
+    existingConceptMap?: ConceptMap
+  ): ConceptMap {
+    return aliasObjectToConceptMap(aliases, canonicalBaseUrl || 'http://example.com', existingConceptMap);
+  }
+
+  // ========== MAPPING CONVERTERS ==========
+
+  /**
+   * Extract FUME expression from a StructureMap resource
+   * @param structureMap - The StructureMap resource
+   * @returns The FUME expression or null if not found
+   */
+  static structureMapToExpression(structureMap: StructureMap): string | null {
+    return structureMapToExpression(structureMap);
+  }
+
+  /**
+   * Create a StructureMap resource from a FUME expression
+   * @param mappingId - The mapping identifier
+   * @param expression - The FUME expression
+   * @param canonicalBaseUrl - Base URL for canonical references (defaults to example.com)
+   * @returns A StructureMap resource
+   */
+  static expressionToStructureMap(
+    mappingId: string,
+    expression: string,
+    canonicalBaseUrl?: string
+  ): StructureMap {
+    return expressionToStructureMap(mappingId, expression, canonicalBaseUrl);
   }
 }

@@ -2,6 +2,7 @@ import { FhirPackageExplorer } from 'fhir-package-explorer';
 import { FhirClient } from '@outburn/fhir-client';
 import { FumeMappingProvider } from '../../src/FumeMappingProvider';
 import { UserMappingProvider, PackageMappingProvider } from '../../src/providers';
+import { StructureMap, ConceptMap } from '../../src/types';
 
 // Mock the providers
 jest.mock('../../src/providers');
@@ -397,6 +398,186 @@ describe('FumeMappingProvider', () => {
 
       const mappings = await providerWithoutPackages.getPackageMappings();
       expect(mappings).toEqual([]);
+    });
+  });
+
+  describe('Aliases', () => {
+    let provider: FumeMappingProvider;
+    let mockClient: FhirClient;
+    let mockAliasProvider: {
+      loadAliases: jest.Mock;
+    };
+
+    beforeEach(() => {
+      mockClient = new FhirClient({ baseUrl: 'http://test.com', fhirVersion: 'R4' });
+      
+      mockAliasProvider = {
+        loadAliases: jest.fn()
+      };
+
+      // Mock the AliasProvider module
+      const providersModule = require('../../src/providers');
+      providersModule.AliasProvider = jest.fn().mockImplementation(() => mockAliasProvider);
+
+      provider = new FumeMappingProvider({
+        fhirClient: mockClient
+      });
+    });
+
+    it('should initialize alias provider when fhirClient provided', async () => {
+      const providersModule = require('../../src/providers');
+      expect(providersModule.AliasProvider).toHaveBeenCalledWith(
+        mockClient,
+        undefined
+      );
+    });
+
+    it('should load aliases during initialize', async () => {
+      const mockAliases = { key1: 'value1', key2: 'value2' };
+      mockAliasProvider.loadAliases.mockResolvedValue(mockAliases);
+
+      await provider.initialize();
+
+      expect(mockAliasProvider.loadAliases).toHaveBeenCalled();
+      
+      const aliases = provider.getAliases();
+      expect(aliases).toEqual(mockAliases);
+    });
+
+    it('should return empty object when no aliases loaded', () => {
+      const aliases = provider.getAliases();
+      expect(aliases).toEqual({});
+    });
+
+    it('should reload aliases from server', async () => {
+      const mockAliases = { key1: 'value1' };
+      mockAliasProvider.loadAliases.mockResolvedValue(mockAliases);
+
+      await provider.reloadAliases();
+
+      expect(mockAliasProvider.loadAliases).toHaveBeenCalled();
+      
+      const aliases = provider.getAliases();
+      expect(aliases).toEqual(mockAliases);
+    });
+
+    it('should register a new alias optimistically', async () => {
+      mockAliasProvider.loadAliases.mockResolvedValue({});
+      await provider.initialize();
+
+      provider.registerAlias('newKey', 'newValue');
+
+      const aliases = provider.getAliases();
+      expect(aliases.newKey).toBe('newValue');
+    });
+
+    it('should update an existing alias optimistically', async () => {
+      const mockAliases = { key1: 'value1' };
+      mockAliasProvider.loadAliases.mockResolvedValue(mockAliases);
+      await provider.initialize();
+
+      provider.registerAlias('key1', 'updatedValue');
+
+      const aliases = provider.getAliases();
+      expect(aliases.key1).toBe('updatedValue');
+    });
+
+    it('should delete an alias from cache', async () => {
+      const mockAliases = { key1: 'value1', key2: 'value2' };
+      mockAliasProvider.loadAliases.mockResolvedValue(mockAliases);
+      await provider.initialize();
+
+      provider.deleteAlias('key1');
+
+      const aliases = provider.getAliases();
+      expect(aliases).not.toHaveProperty('key1');
+      expect(aliases.key2).toBe('value2');
+    });
+
+    it('should return copy of aliases object', async () => {
+      const mockAliases = { key1: 'value1' };
+      mockAliasProvider.loadAliases.mockResolvedValue(mockAliases);
+      await provider.initialize();
+
+      const aliases1 = provider.getAliases();
+      const aliases2 = provider.getAliases();
+
+      // Should be equal but not same reference
+      expect(aliases1).toEqual(aliases2);
+      expect(aliases1).not.toBe(aliases2);
+
+      // Modifying returned object shouldn't affect cache
+      aliases1.key1 = 'modified';
+      const aliases3 = provider.getAliases();
+      expect(aliases3.key1).toBe('value1');
+    });
+  });
+
+  describe('Static Converters', () => {
+    it('should call structureMapToExpression', () => {
+      const structureMap: StructureMap = {
+        resourceType: 'StructureMap',
+        id: 'test-map',
+        group: [
+          {
+            name: 'fumeMapping',
+            rule: [
+              {
+                extension: [
+                  {
+                    url: 'http://fhir.fume.health/StructureDefinition/mapping-expression',
+                    valueExpression: {
+                      language: 'application/vnd.outburn.fume',
+                      expression: 'test expression'
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      };
+      const result = FumeMappingProvider.structureMapToExpression(structureMap);
+      expect(result).toBe('test expression');
+    });
+
+    it('should call expressionToStructureMap', () => {
+      const result = FumeMappingProvider.expressionToStructureMap('test-id', 'test-expression', 'https://example.com');
+      expect(result.resourceType).toBe('StructureMap');
+      expect(result.id).toBe('test-id');
+      expect(result.url).toContain('test-id');
+    });
+
+    it('should call conceptMapToAliasObject', () => {
+      const conceptMap: ConceptMap = {
+        resourceType: 'ConceptMap',
+        status: 'active',
+        name: 'FumeAliases',
+        group: [
+          {
+            element: [
+              {
+                code: 'key1',
+                target: [{ code: 'value1', equivalence: 'equivalent' }]
+              },
+              {
+                code: 'key2',
+                target: [{ code: 'value2', equivalence: 'equivalent' }]
+              }
+            ]
+          }
+        ]
+      };
+      const result = FumeMappingProvider.conceptMapToAliasObject(conceptMap);
+      expect(result).toEqual({ key1: 'value1', key2: 'value2' });
+    });
+
+    it('should call aliasObjectToConceptMap', () => {
+      const aliases = { key1: 'value1', key2: 'value2' };
+      const result = FumeMappingProvider.aliasObjectToConceptMap(aliases, 'https://example.com');
+      expect(result.resourceType).toBe('ConceptMap');
+      expect(result.name).toBe('FumeAliases');
+      expect(result.group?.[0]?.element).toHaveLength(2);
     });
   });
 });
