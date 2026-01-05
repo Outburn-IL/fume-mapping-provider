@@ -1,6 +1,6 @@
 {
   "name": "@outburn/fume-mapping-provider",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Manage pre-defined, named FUME expressions (mappings) from FHIR packages, servers, or files",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
