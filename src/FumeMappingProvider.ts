@@ -269,33 +269,29 @@ export class FumeMappingProvider {
    * @param conceptMap - The ConceptMap resource
    * @returns An alias object with key-value mappings
    */
-  static conceptMapToAliasObject(conceptMap: ConceptMap): AliasObject {
-    return conceptMapToAliasObject(conceptMap);
+  conceptMapToAliasObject(conceptMap: ConceptMap): AliasObject {
+    return conceptMapToAliasObject(conceptMap, this.logger);
   }
 
   /**
    * Transform an alias object into a ConceptMap resource
    * @param aliases - The alias object
-   * @param canonicalBaseUrl - Base URL for canonical references (defaults to example.com)
    * @param existingConceptMap - Optional existing ConceptMap to update
    * @returns A ConceptMap resource
    */
-  static aliasObjectToConceptMap(
+  aliasObjectToConceptMap(
     aliases: AliasObject,
-    canonicalBaseUrl?: string,
     existingConceptMap?: ConceptMap
   ): ConceptMap {
-    return aliasObjectToConceptMap(aliases, canonicalBaseUrl || 'http://example.com', existingConceptMap);
+    return aliasObjectToConceptMap(aliases, this.getCanonicalBaseUrl(), existingConceptMap);
   }
-
-  // ========== MAPPING CONVERTERS ==========
 
   /**
    * Extract FUME expression from a StructureMap resource
    * @param structureMap - The StructureMap resource
    * @returns The FUME expression or null if not found
    */
-  static structureMapToExpression(structureMap: StructureMap): string | null {
+  structureMapToExpression(structureMap: StructureMap): string | null {
     return structureMapToExpression(structureMap);
   }
 
@@ -303,14 +299,12 @@ export class FumeMappingProvider {
    * Create a StructureMap resource from a FUME expression
    * @param mappingId - The mapping identifier
    * @param expression - The FUME expression
-   * @param canonicalBaseUrl - Base URL for canonical references (defaults to example.com)
    * @returns A StructureMap resource
    */
-  static expressionToStructureMap(
+  expressionToStructureMap(
     mappingId: string,
-    expression: string,
-    canonicalBaseUrl?: string
+    expression: string
   ): StructureMap {
-    return expressionToStructureMap(mappingId, expression, canonicalBaseUrl);
+    return expressionToStructureMap(mappingId, expression, this.getCanonicalBaseUrl());
   }
 }
