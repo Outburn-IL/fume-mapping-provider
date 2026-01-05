@@ -58,6 +58,7 @@ const provider = new FumeMappingProvider({
   fileExtension: '.fume', // Optional, default is '.fume'
   fhirClient: fhirClient,
   packageExplorer: packageExplorer,
+  canonicalBaseUrl: 'http://example.com', // Optional, default is 'http://example.com'
   logger: console // Optional
 });
 
@@ -210,14 +211,10 @@ provider.deleteAlias('oldKey');
 
 ```typescript
 // ConceptMap → Alias Object
-const aliases = FumeMappingProvider.conceptMapToAliasObject(conceptMap);
+const aliases = provider.conceptMapToAliasObject(conceptMap);
 
 // Alias Object → ConceptMap
-const conceptMap = FumeMappingProvider.aliasObjectToConceptMap(
-  aliases,
-  'http://example.com',  // canonical base URL
-  existingConceptMap     // optional: update existing resource
-);
+const conceptMap = provider.aliasObjectToConceptMap(aliases, existingConceptMap);
 ```
 
 ## Package Mappings API
@@ -373,11 +370,12 @@ new FumeMappingProvider(config: FumeMappingProviderConfig)
 - `deleteAlias(name: string): void` - Delete a specific alias from cache
 - `getAliases(): AliasObject` - Get all cached aliases as single object
 
-**Static Converters:**
-- `FumeMappingProvider.structureMapToExpression(structureMap: StructureMap): string | null` - Extract FUME expression from StructureMap
-- `FumeMappingProvider.expressionToStructureMap(mappingId: string, expression: string, canonicalBaseUrl?: string): StructureMap` - Create StructureMap from expression
-- `FumeMappingProvider.conceptMapToAliasObject(conceptMap: ConceptMap): AliasObject` - Transform ConceptMap to alias object
-- `FumeMappingProvider.aliasObjectToConceptMap(aliases: AliasObject, canonicalBaseUrl?: string, existingConceptMap?: ConceptMap): ConceptMap` - Transform alias object to ConceptMap
+**Converters:**
+- `getCanonicalBaseUrl(): string` - Get canonical base URL used for generated resources
+- `structureMapToExpression(structureMap: StructureMap): string | null` - Extract FUME expression from StructureMap
+- `expressionToStructureMap(mappingId: string, expression: string): StructureMap` - Create StructureMap from expression (uses canonical base URL)
+- `conceptMapToAliasObject(conceptMap: ConceptMap): AliasObject` - Transform ConceptMap to alias object
+- `aliasObjectToConceptMap(aliases: AliasObject, existingConceptMap?: ConceptMap): ConceptMap` - Transform alias object to ConceptMap (uses canonical base URL)
 
 ### Configuration
 
@@ -388,6 +386,7 @@ interface FumeMappingProviderConfig {
   fhirClient?: any;                  // FHIR client instance
   packageExplorer?: any;             // FPE instance
   logger?: Logger;                   // Optional logger
+  canonicalBaseUrl?: string;         // Default: 'http://example.com'
 }
 ```
 
