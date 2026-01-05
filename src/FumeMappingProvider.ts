@@ -17,6 +17,8 @@ export class FumeMappingProvider {
   private serverAliases: AliasObject = {};
   private userRegisteredAliases: AliasObject = {};
 
+  private static readonly DEFAULT_CANONICAL_BASE_URL = 'http://example.com';
+
   constructor(private config: FumeMappingProviderConfig) {
     this.logger = config.logger;
     this.initializeProviders();
@@ -252,7 +254,15 @@ export class FumeMappingProvider {
     };
   }
 
-  // ========== ALIAS CONVERTERS ==========
+  /**
+   * Get the canonical base URL used for generating FHIR resources.
+   * Defaults to 'http://example.com' if not provided.
+   */
+  getCanonicalBaseUrl(): string {
+    return this.config.canonicalBaseUrl || FumeMappingProvider.DEFAULT_CANONICAL_BASE_URL;
+  }
+
+  // ========== CONVERTERS ==========
 
   /**
    * Transform a ConceptMap resource into an alias object
