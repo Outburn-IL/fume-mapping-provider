@@ -10,6 +10,8 @@ describe('Aliases Integration Tests', () => {
   let provider: FumeMappingProvider;
   const baseUrl = HAPI_BASE_URL;
 
+  const createConverterProvider = (canonicalBaseUrl?: string) => new FumeMappingProvider({ canonicalBaseUrl });
+
   beforeAll(() => {
     fhirClient = new FhirClient({ baseUrl, fhirVersion: 'R4' });
   });
@@ -115,10 +117,7 @@ describe('Aliases Integration Tests', () => {
     expect(provider.getAliases()).toEqual(builtInAliases);
 
     // Create alias ConceptMap on server after initialization
-    const conceptMap = FumeMappingProvider.aliasObjectToConceptMap(
-      { newKey: 'newValue' },
-      'http://example.com'
-    );
+    const conceptMap = createConverterProvider('http://example.com').aliasObjectToConceptMap({ newKey: 'newValue' });
     conceptMap.id = 'fume-test-aliases';
     try { await fhirClient.delete('ConceptMap', 'fume-test-aliases'); } catch {}
     await fhirClient.update(conceptMap);
@@ -149,10 +148,11 @@ describe('Aliases Integration Tests', () => {
 
   it('should handle alias deletion', async () => {
     // Create aliases on server
-    const conceptMap = FumeMappingProvider.aliasObjectToConceptMap(
-      { key1: 'value1', key2: 'value2', key3: 'value3' },
-      'http://example.com'
-    );
+    const conceptMap = createConverterProvider('http://example.com').aliasObjectToConceptMap({
+      key1: 'value1',
+      key2: 'value2',
+      key3: 'value3'
+    });
     conceptMap.id = 'fume-test-aliases';
     try { await fhirClient.delete('ConceptMap', 'fume-test-aliases'); } catch {}
     await fhirClient.update(conceptMap);
@@ -171,15 +171,9 @@ describe('Aliases Integration Tests', () => {
 
   it('should skip loading when multiple alias resources found', async () => {
     // Create two alias ConceptMaps (invalid state) with different URLs
-    const conceptMap1 = FumeMappingProvider.aliasObjectToConceptMap(
-      { key1: 'value1' },
-      'http://example.com/v1'
-    );
+    const conceptMap1 = createConverterProvider('http://example.com/v1').aliasObjectToConceptMap({ key1: 'value1' });
     conceptMap1.id = 'fume-test-aliases-1';
-    const conceptMap2 = FumeMappingProvider.aliasObjectToConceptMap(
-      { key2: 'value2' },
-      'http://example.com/v2'
-    );
+    const conceptMap2 = createConverterProvider('http://example.com/v2').aliasObjectToConceptMap({ key2: 'value2' });
     conceptMap2.id = 'fume-test-aliases-2';
 
     try { await fhirClient.delete('ConceptMap', 'fume-test-aliases-1'); } catch {}
@@ -230,10 +224,7 @@ describe('Aliases Integration Tests', () => {
     };
 
     // Convert to ConceptMap and upload
-    const conceptMap = FumeMappingProvider.aliasObjectToConceptMap(
-      originalAliases,
-      'http://example.com'
-    );
+    const conceptMap = createConverterProvider('http://example.com').aliasObjectToConceptMap(originalAliases);
     conceptMap.id = 'fume-test-aliases';
     try { await fhirClient.delete('ConceptMap', 'fume-test-aliases'); } catch {}
     await fhirClient.update(conceptMap);

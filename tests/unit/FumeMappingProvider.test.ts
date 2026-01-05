@@ -530,8 +530,9 @@ describe('FumeMappingProvider', () => {
     });
   });
 
-  describe('Static Converters', () => {
+  describe('Converters', () => {
     it('should call structureMapToExpression', () => {
+      const provider = new FumeMappingProvider({});
       const structureMap: StructureMap = {
         resourceType: 'StructureMap',
         id: 'test-map',
@@ -554,18 +555,21 @@ describe('FumeMappingProvider', () => {
           }
         ]
       };
-      const result = FumeMappingProvider.structureMapToExpression(structureMap);
+      const result = provider.structureMapToExpression(structureMap);
       expect(result).toBe('test expression');
     });
 
     it('should call expressionToStructureMap', () => {
-      const result = FumeMappingProvider.expressionToStructureMap('test-id', 'test-expression', 'https://example.com');
+      const provider = new FumeMappingProvider({ canonicalBaseUrl: 'https://example.com' });
+      const result = provider.expressionToStructureMap('test-id', 'test-expression');
       expect(result.resourceType).toBe('StructureMap');
       expect(result.id).toBe('test-id');
       expect(result.url).toContain('test-id');
+      expect(result.url).toContain('https://example.com');
     });
 
     it('should call conceptMapToAliasObject', () => {
+      const provider = new FumeMappingProvider({});
       const conceptMap: ConceptMap = {
         resourceType: 'ConceptMap',
         status: 'active',
@@ -585,13 +589,14 @@ describe('FumeMappingProvider', () => {
           }
         ]
       };
-      const result = FumeMappingProvider.conceptMapToAliasObject(conceptMap);
+      const result = provider.conceptMapToAliasObject(conceptMap);
       expect(result).toEqual({ key1: 'value1', key2: 'value2' });
     });
 
     it('should call aliasObjectToConceptMap', () => {
+      const provider = new FumeMappingProvider({ canonicalBaseUrl: 'https://example.com' });
       const aliases = { key1: 'value1', key2: 'value2' };
-      const result = FumeMappingProvider.aliasObjectToConceptMap(aliases, 'https://example.com');
+      const result = provider.aliasObjectToConceptMap(aliases);
       expect(result.resourceType).toBe('ConceptMap');
       expect(result.name).toBe('FumeAliases');
       expect(result.group?.[0]?.element).toHaveLength(2);
