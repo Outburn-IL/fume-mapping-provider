@@ -1,6 +1,7 @@
 import { FhirClient } from '@outburn/fhir-client';
 import { FumeMappingProvider } from '../../src/FumeMappingProvider';
 import { ConceptMap } from '../../src/types';
+import { builtInAliases } from '../../src/builtInAliases';
 
 const HAPI_BASE_URL = 'http://localhost:8081/fhir';
 
@@ -42,11 +43,11 @@ describe('Aliases Integration Tests', () => {
     }
   });
 
-  it('should return empty object when no aliases exist', async () => {
+  it('should return built-in aliases when no aliases exist', async () => {
     await provider.initialize();
     
     const aliases = provider.getAliases();
-    expect(aliases).toEqual({});
+    expect(aliases).toEqual(builtInAliases);
   });
 
   it('should load aliases from server during initialization', async () => {
@@ -103,6 +104,7 @@ describe('Aliases Integration Tests', () => {
     
     const aliases = provider.getAliases();
     expect(aliases).toEqual({
+      ...builtInAliases,
       apiUrl: 'http://api.example.com',
       defaultLang: 'en-US'
     });
@@ -110,7 +112,7 @@ describe('Aliases Integration Tests', () => {
 
   it('should reload aliases from server', async () => {
     await provider.initialize();
-    expect(provider.getAliases()).toEqual({});
+    expect(provider.getAliases()).toEqual(builtInAliases);
 
     // Create alias ConceptMap on server after initialization
     const conceptMap = FumeMappingProvider.aliasObjectToConceptMap(
@@ -126,6 +128,7 @@ describe('Aliases Integration Tests', () => {
     
     const aliases = provider.getAliases();
     expect(aliases).toEqual({
+      ...builtInAliases,
       newKey: 'newValue'
     });
   });
@@ -138,6 +141,7 @@ describe('Aliases Integration Tests', () => {
 
     const aliases = provider.getAliases();
     expect(aliases).toEqual({
+      ...builtInAliases,
       key1: 'value1',
       key2: 'value2'
     });
@@ -159,6 +163,7 @@ describe('Aliases Integration Tests', () => {
 
     const aliases = provider.getAliases();
     expect(aliases).toEqual({
+      ...builtInAliases,
       key1: 'value1',
       key3: 'value3'
     });
@@ -186,7 +191,7 @@ describe('Aliases Integration Tests', () => {
     
     // Should return empty object due to multiple resources
     const aliases = provider.getAliases();
-    expect(aliases).toEqual({});
+    expect(aliases).toEqual(builtInAliases);
   });
 
   it('should skip ConceptMaps without correct useContext', async () => {
@@ -214,7 +219,7 @@ describe('Aliases Integration Tests', () => {
     
     // Should return empty object due to missing useContext
     const aliases = provider.getAliases();
-    expect(aliases).toEqual({});
+    expect(aliases).toEqual(builtInAliases);
   });
 
   it('should round-trip aliases through server', async () => {
@@ -237,6 +242,9 @@ describe('Aliases Integration Tests', () => {
     await provider.initialize();
     const loadedAliases = provider.getAliases();
 
-    expect(loadedAliases).toEqual(originalAliases);
+    expect(loadedAliases).toEqual({
+      ...builtInAliases,
+      ...originalAliases
+    });
   });
 });

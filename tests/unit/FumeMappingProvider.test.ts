@@ -3,6 +3,7 @@ import { FhirClient } from '@outburn/fhir-client';
 import { FumeMappingProvider } from '../../src/FumeMappingProvider';
 import { UserMappingProvider, PackageMappingProvider } from '../../src/providers';
 import { StructureMap, ConceptMap } from '../../src/types';
+import { builtInAliases } from '../../src/builtInAliases';
 
 // Mock the providers
 jest.mock('../../src/providers');
@@ -441,12 +442,15 @@ describe('FumeMappingProvider', () => {
       expect(mockAliasProvider.loadAliases).toHaveBeenCalled();
       
       const aliases = provider.getAliases();
-      expect(aliases).toEqual(mockAliases);
+      expect(aliases).toEqual({
+        ...builtInAliases,
+        ...mockAliases
+      });
     });
 
-    it('should return empty object when no aliases loaded', () => {
+    it('should return built-in aliases when no aliases loaded', () => {
       const aliases = provider.getAliases();
-      expect(aliases).toEqual({});
+      expect(aliases).toEqual(builtInAliases);
     });
 
     it('should reload aliases from server', async () => {
@@ -458,7 +462,10 @@ describe('FumeMappingProvider', () => {
       expect(mockAliasProvider.loadAliases).toHaveBeenCalled();
       
       const aliases = provider.getAliases();
-      expect(aliases).toEqual(mockAliases);
+      expect(aliases).toEqual({
+        ...builtInAliases,
+        ...mockAliases
+      });
     });
 
     it('should register a new alias optimistically', async () => {
@@ -480,6 +487,16 @@ describe('FumeMappingProvider', () => {
 
       const aliases = provider.getAliases();
       expect(aliases.key1).toBe('updatedValue');
+    });
+
+    it('should allow user alias to override a built-in alias', async () => {
+      mockAliasProvider.loadAliases.mockResolvedValue({});
+      await provider.initialize();
+
+      expect(provider.getAliases().ucum).toBe('http://unitsofmeasure.org');
+
+      provider.registerAlias('ucum', 'http://example.com/custom-ucum');
+      expect(provider.getAliases().ucum).toBe('http://example.com/custom-ucum');
     });
 
     it('should delete an alias from cache', async () => {

@@ -2,6 +2,7 @@ import { FumeMappingProviderConfig, UserMapping, UserMappingMetadata, PackageMap
 import { Logger } from '@outburn/types';
 import { UserMappingProvider, PackageMappingProvider, AliasProvider } from './providers';
 import { conceptMapToAliasObject, aliasObjectToConceptMap, structureMapToExpression, expressionToStructureMap } from './converters';
+import { builtInAliases } from './builtInAliases';
 
 /**
  * Main orchestrator for FUME mappings from multiple sources
@@ -13,7 +14,8 @@ export class FumeMappingProvider {
   private packageProvider?: PackageMappingProvider;
   private aliasProvider?: AliasProvider;
   private userMappingsCache: Map<string, UserMapping> = new Map();
-  private cachedAliases: AliasObject = {};
+  private serverAliases: AliasObject = {};
+  private userRegisteredAliases: AliasObject = {};
 
   constructor(private config: FumeMappingProviderConfig) {
     this.logger = config.logger;
@@ -68,8 +70,8 @@ export class FumeMappingProvider {
 
     if (this.aliasProvider) {
       this.logger?.info?.('Loading aliases');
-      this.cachedAliases = await this.aliasProvider.loadAliases();
-      this.logger?.info?.(`Loaded ${Object.keys(this.cachedAliases).length} alias(es)`);
+      this.serverAliases = await this.aliasProvider.loadAliases();
+      this.logger?.info?.(`Loaded ${Object.keys(this.serverAliases).length} alias(es)`);
     }
   }
 
@@ -214,8 +216,8 @@ export class FumeMappingProvider {
     }
     
     this.logger?.info?.('Reloading aliases');
-    this.cachedAliases = await this.aliasProvider.loadAliases();
-    this.logger?.info?.(`Reloaded ${Object.keys(this.cachedAliases).length} alias(es)`);
+    this.serverAliases = await this.aliasProvider.loadAliases();
+    this.logger?.info?.(`Reloaded ${Object.keys(this.serverAliases).length} alias(es)`);
   }
 
   /**
@@ -224,7 +226,7 @@ export class FumeMappingProvider {
    * @param value - The alias value
    */
   registerAlias(name: string, value: string): void {
-    this.cachedAliases[name] = value;
+    this.userRegisteredAliases[name] = value;
     this.logger?.debug?.(`Registered alias: ${name}`);
   }
 
@@ -233,7 +235,8 @@ export class FumeMappingProvider {
    * @param name - The alias name/key to delete
    */
   deleteAlias(name: string): void {
-    delete this.cachedAliases[name];
+    delete this.userRegisteredAliases[name];
+    delete this.serverAliases[name];
     this.logger?.debug?.(`Deleted alias: ${name}`);
   }
 
@@ -242,7 +245,11 @@ export class FumeMappingProvider {
    * @returns The alias object with all key-value mappings
    */
   getAliases(): AliasObject {
-    return { ...this.cachedAliases };
+    return {
+      ...builtInAliases,
+      ...this.serverAliases,
+      ...this.userRegisteredAliases
+    };
   }
 
   // ========== ALIAS CONVERTERS ==========
