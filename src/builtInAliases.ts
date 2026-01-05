@@ -1,6 +1,7 @@
 import { AliasObject } from './types';
 
 export const builtInAliases: AliasObject = {
+  exampleMrn: 'http://this.is.an.example.uri/mrn',
   ucum: 'http://unitsofmeasure.org',
   loinc: 'http://loinc.org',
   sct: 'http://snomed.info/sct',
