@@ -407,13 +407,15 @@ describe('FumeMappingProvider', () => {
     let mockClient: FhirClient;
     let mockAliasProvider: {
       loadAliases: jest.Mock;
+      loadAliasesWithMetadata?: jest.Mock;
     };
 
     beforeEach(() => {
       mockClient = new FhirClient({ baseUrl: 'http://test.com', fhirVersion: 'R4' });
       
       mockAliasProvider = {
-        loadAliases: jest.fn()
+        loadAliases: jest.fn(),
+        loadAliasesWithMetadata: jest.fn()
       };
 
       // Mock the AliasProvider module
@@ -435,11 +437,12 @@ describe('FumeMappingProvider', () => {
 
     it('should load aliases during initialize', async () => {
       const mockAliases = { key1: 'value1', key2: 'value2' };
-      mockAliasProvider.loadAliases.mockResolvedValue(mockAliases);
+      mockAliasProvider.loadAliasesWithMetadata?.mockResolvedValue({ aliases: mockAliases, resourceId: 'alias-cm-1' });
 
       await provider.initialize();
 
-      expect(mockAliasProvider.loadAliases).toHaveBeenCalled();
+      expect(mockAliasProvider.loadAliasesWithMetadata).toHaveBeenCalled();
+      expect(provider.getAliasResourceId()).toBe('alias-cm-1');
       
       const aliases = provider.getAliases();
       expect(aliases).toEqual({
@@ -455,11 +458,12 @@ describe('FumeMappingProvider', () => {
 
     it('should reload aliases from server', async () => {
       const mockAliases = { key1: 'value1' };
-      mockAliasProvider.loadAliases.mockResolvedValue(mockAliases);
+      mockAliasProvider.loadAliasesWithMetadata?.mockResolvedValue({ aliases: mockAliases, resourceId: 'alias-cm-2' });
 
       await provider.reloadAliases();
 
-      expect(mockAliasProvider.loadAliases).toHaveBeenCalled();
+      expect(mockAliasProvider.loadAliasesWithMetadata).toHaveBeenCalled();
+      expect(provider.getAliasResourceId()).toBe('alias-cm-2');
       
       const aliases = provider.getAliases();
       expect(aliases).toEqual({
@@ -469,7 +473,7 @@ describe('FumeMappingProvider', () => {
     });
 
     it('should register a new alias optimistically', async () => {
-      mockAliasProvider.loadAliases.mockResolvedValue({});
+      mockAliasProvider.loadAliasesWithMetadata?.mockResolvedValue({ aliases: {}, resourceId: undefined });
       await provider.initialize();
 
       provider.registerAlias('newKey', 'newValue');
@@ -480,7 +484,7 @@ describe('FumeMappingProvider', () => {
 
     it('should update an existing alias optimistically', async () => {
       const mockAliases = { key1: 'value1' };
-      mockAliasProvider.loadAliases.mockResolvedValue(mockAliases);
+      mockAliasProvider.loadAliasesWithMetadata?.mockResolvedValue({ aliases: mockAliases, resourceId: 'alias-cm-3' });
       await provider.initialize();
 
       provider.registerAlias('key1', 'updatedValue');
@@ -490,7 +494,7 @@ describe('FumeMappingProvider', () => {
     });
 
     it('should allow user alias to override a built-in alias', async () => {
-      mockAliasProvider.loadAliases.mockResolvedValue({});
+      mockAliasProvider.loadAliasesWithMetadata?.mockResolvedValue({ aliases: {}, resourceId: undefined });
       await provider.initialize();
 
       expect(provider.getAliases().ucum).toBe('http://unitsofmeasure.org');
@@ -501,7 +505,7 @@ describe('FumeMappingProvider', () => {
 
     it('should delete an alias from cache', async () => {
       const mockAliases = { key1: 'value1', key2: 'value2' };
-      mockAliasProvider.loadAliases.mockResolvedValue(mockAliases);
+      mockAliasProvider.loadAliasesWithMetadata?.mockResolvedValue({ aliases: mockAliases, resourceId: 'alias-cm-4' });
       await provider.initialize();
 
       provider.deleteAlias('key1');
@@ -513,7 +517,7 @@ describe('FumeMappingProvider', () => {
 
     it('should return copy of aliases object', async () => {
       const mockAliases = { key1: 'value1' };
-      mockAliasProvider.loadAliases.mockResolvedValue(mockAliases);
+      mockAliasProvider.loadAliasesWithMetadata?.mockResolvedValue({ aliases: mockAliases, resourceId: 'alias-cm-5' });
       await provider.initialize();
 
       const aliases1 = provider.getAliases();

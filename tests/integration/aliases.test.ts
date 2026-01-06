@@ -50,6 +50,8 @@ describe('Aliases Integration Tests', () => {
     
     const aliases = provider.getAliases();
     expect(aliases).toEqual(builtInAliases);
+
+    expect(provider.getAliasResourceId()).toBeUndefined();
   });
 
   it('should load aliases from server during initialization', async () => {
@@ -110,11 +112,14 @@ describe('Aliases Integration Tests', () => {
       apiUrl: 'http://api.example.com',
       defaultLang: 'en-US'
     });
+
+    expect(provider.getAliasResourceId()).toBe('fume-test-aliases');
   });
 
   it('should reload aliases from server', async () => {
     await provider.initialize();
     expect(provider.getAliases()).toEqual(builtInAliases);
+    expect(provider.getAliasResourceId()).toBeUndefined();
 
     // Create alias ConceptMap on server after initialization
     const conceptMap = createConverterProvider('http://example.com').aliasObjectToConceptMap({ newKey: 'newValue' });
@@ -130,6 +135,8 @@ describe('Aliases Integration Tests', () => {
       ...builtInAliases,
       newKey: 'newValue'
     });
+
+    expect(provider.getAliasResourceId()).toBe('fume-test-aliases');
   });
 
   it('should handle optimistic alias updates', async () => {
@@ -186,6 +193,8 @@ describe('Aliases Integration Tests', () => {
     // Should return empty object due to multiple resources
     const aliases = provider.getAliases();
     expect(aliases).toEqual(builtInAliases);
+
+    expect(provider.getAliasResourceId()).toBeUndefined();
   });
 
   it('should skip ConceptMaps without correct useContext', async () => {
@@ -214,6 +223,8 @@ describe('Aliases Integration Tests', () => {
     // Should return empty object due to missing useContext
     const aliases = provider.getAliases();
     expect(aliases).toEqual(builtInAliases);
+
+    expect(provider.getAliasResourceId()).toBeUndefined();
   });
 
   it('should round-trip aliases through server', async () => {
@@ -237,5 +248,7 @@ describe('Aliases Integration Tests', () => {
       ...builtInAliases,
       ...originalAliases
     });
+
+    expect(provider.getAliasResourceId()).toBe('fume-test-aliases');
   });
 });

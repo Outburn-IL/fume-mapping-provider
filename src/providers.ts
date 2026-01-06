@@ -447,13 +447,12 @@ export class AliasProvider {
   ) {}
 
   /**
-   * Load aliases from FHIR server
-   * @returns AliasObject with all aliases, or empty object if none found
+   * Result of alias loading with metadata about the source ConceptMap.
    */
-  async loadAliases(): Promise<AliasObject> {
+  async loadAliasesWithMetadata(): Promise<{ aliases: AliasObject; resourceId?: string }> {
     /* istanbul ignore if */
     if (!this.fhirClient) {
-      return {};
+      return { aliases: {}, resourceId: undefined };
     }
     
     try {
@@ -470,7 +469,7 @@ export class AliasProvider {
 
       if (!resources || !Array.isArray(resources) || resources.length === 0) {
         this.logger?.debug?.('No alias ConceptMap found on server');
-        return {};
+        return { aliases: {}, resourceId: undefined };
       }
       
       // Filter client-side in case server ignores context parameter
@@ -478,19 +477,23 @@ export class AliasProvider {
       
       if (aliasResources.length === 0) {
         this.logger?.debug?.('No alias ConceptMap with correct useContext found');
-        return {};
+        return { aliases: {}, resourceId: undefined };
       }
       
       if (aliasResources.length > 1) {
         this.logger?.error?.(`Found ${aliasResources.length} alias ConceptMaps - expected exactly 1. Skipping alias loading.`);
-        return {};
+        return { aliases: {}, resourceId: undefined };
       }
       
       const conceptMap = aliasResources[0] as ConceptMap;
       const aliases = conceptMapToAliasObject(conceptMap, this.logger);
-      
-      this.logger?.info?.(`Loaded ${Object.keys(aliases).length} alias(es) from server`);
-      return aliases;
+
+      // Keep AliasProvider logging lightweight; FumeMappingProvider logs the id on initialize/reload.
+      this.logger?.debug?.(
+        `Loaded ${Object.keys(aliases).length} alias(es) from server (ConceptMap id: ${conceptMap.id || 'unknown'})`
+      );
+
+      return { aliases, resourceId: conceptMap.id };
       
     } catch (error) {
       /* istanbul ignore next */
@@ -498,7 +501,16 @@ export class AliasProvider {
       /* istanbul ignore next */
       this.logger?.error?.(`Failed to load aliases from server ${serverUrl}:`, error);
       /* istanbul ignore next */
-      return {};
+      return { aliases: {}, resourceId: undefined };
     }
+  }
+
+  /**
+   * Load aliases from FHIR server
+   * @returns AliasObject with all aliases, or empty object if none found
+   */
+  async loadAliases(): Promise<AliasObject> {
+    const result = await this.loadAliasesWithMetadata();
+    return result.aliases;
   }
 }

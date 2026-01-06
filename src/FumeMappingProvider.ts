@@ -16,6 +16,7 @@ export class FumeMappingProvider {
   private userMappingsCache: Map<string, UserMapping> = new Map();
   private serverAliases: AliasObject = {};
   private userRegisteredAliases: AliasObject = {};
+  private aliasResourceId?: string;
 
   private static readonly DEFAULT_CANONICAL_BASE_URL = 'http://example.com';
 
@@ -72,8 +73,15 @@ export class FumeMappingProvider {
 
     if (this.aliasProvider) {
       this.logger?.info?.('Loading aliases');
-      this.serverAliases = await this.aliasProvider.loadAliases();
-      this.logger?.info?.(`Loaded ${Object.keys(this.serverAliases).length} alias(es)`);
+
+      const { aliases, resourceId } = await this.aliasProvider.loadAliasesWithMetadata();
+      this.serverAliases = aliases;
+      this.aliasResourceId = resourceId;
+
+      this.logger?.info?.(
+        `Loaded ${Object.keys(this.serverAliases).length} alias(es)` +
+          (this.aliasResourceId ? ` (ConceptMap id: ${this.aliasResourceId})` : '')
+      );
     }
   }
 
@@ -218,8 +226,23 @@ export class FumeMappingProvider {
     }
     
     this.logger?.info?.('Reloading aliases');
-    this.serverAliases = await this.aliasProvider.loadAliases();
-    this.logger?.info?.(`Reloaded ${Object.keys(this.serverAliases).length} alias(es)`);
+
+    const { aliases, resourceId } = await this.aliasProvider.loadAliasesWithMetadata();
+    this.serverAliases = aliases;
+    this.aliasResourceId = resourceId;
+
+    this.logger?.info?.(
+      `Reloaded ${Object.keys(this.serverAliases).length} alias(es)` +
+        (this.aliasResourceId ? ` (ConceptMap id: ${this.aliasResourceId})` : '')
+    );
+  }
+
+  /**
+   * Get the ConceptMap resource id used for server aliases (if loaded).
+   * Downstream consumers can use this id to update the alias ConceptMap.
+   */
+  getAliasResourceId(): string | undefined {
+    return this.aliasResourceId;
   }
 
   /**
