@@ -182,6 +182,11 @@ The server is queried with: `GET [baseUrl]/ConceptMap?context=http://codes.fume.
 const aliases = provider.getAliases();
 // Returns: { [key: string]: string }
 
+// Get the ConceptMap id used for server aliases (if loaded)
+// Downstream consumers can use this id when updating the alias ConceptMap
+const aliasResourceId = provider.getAliasResourceId();
+// Returns: string | undefined
+
 // Example:
 // {
 //   "patientSystemUrl": "http://example.com/patients",
@@ -369,6 +374,7 @@ new FumeMappingProvider(config: FumeMappingProviderConfig)
 - `registerAlias(name: string, value: string): void` - Register/update a single alias (optimistic cache update)
 - `deleteAlias(name: string): void` - Delete a specific alias from cache
 - `getAliases(): AliasObject` - Get all cached aliases as single object
+- `getAliasResourceId(): string | undefined` - Get ConceptMap id for server aliases (if loaded)
 
 **Converters:**
 - `getCanonicalBaseUrl(): string` - Get canonical base URL used for generated resources
