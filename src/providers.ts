@@ -448,6 +448,8 @@ export class AliasProvider {
 
   /**
    * Result of alias loading with metadata about the source ConceptMap.
+   * @returns {{ aliases: AliasObject, resourceId?: string }} A promise that resolves to an object containing the resolved aliases
+   * and the originating ConceptMap resource id, if available.
    */
   async loadAliasesWithMetadata(): Promise<{ aliases: AliasObject; resourceId?: string }> {
     /* istanbul ignore if */
