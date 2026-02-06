@@ -9,7 +9,7 @@ function createFumeStructureMap(id: string, expression: string, url?: string) {
     resourceType: 'StructureMap',
     id,
     url: url || `http://test.example.com/StructureMap/${id}`,
-    name: id.replace(/-/g, '_'),
+    name: id,
     status: 'active',
     useContext: [
       {
@@ -125,7 +125,7 @@ describe('Server Integration Tests', () => {
     it('should load server mappings', async () => {
       // Create a test StructureMap on the server
       const structureMap = createFumeStructureMap(
-        'test-server-map-1',
+        'testServerMap1',
         '$output = { test: "server" }',
         'http://test.example.com/StructureMap/test-1'
       );
@@ -138,7 +138,7 @@ describe('Server Integration Tests', () => {
       
       const mappings = provider.getUserMappings();
       expect(mappings.length).toBe(1);
-      expect(mappings[0].key).toBe('test-server-map-1');
+      expect(mappings[0].key).toBe('testServerMap1');
       expect(mappings[0].source).toBe('server');
       expect(mappings[0].expression).toBe('$output = { test: "server" }');
       expect(mappings[0].url).toBe('http://test.example.com/StructureMap/test-1');
@@ -147,32 +147,32 @@ describe('Server Integration Tests', () => {
     it('should refresh server mapping', async () => {
       // Create initial mapping
       let structureMap = createFumeStructureMap(
-        'test-refresh-map',
+        'testRefreshMap',
         '$output = { version: 1 }',
         'http://test.example.com/StructureMap/refresh'
       );
 
       await client.update(structureMap);
-      createdResourceIds.push('test-refresh-map');
+      createdResourceIds.push('testRefreshMap');
 
       await provider.initialize();
       
-      let mapping = provider.getUserMapping('test-refresh-map');
+      let mapping = provider.getUserMapping('testRefreshMap');
       expect(mapping?.expression).toBe('$output = { version: 1 }');
 
       // Update the mapping on the server
       structureMap = createFumeStructureMap(
-        'test-refresh-map',
+        'testRefreshMap',
         '$output = { version: 2 }',
         'http://test.example.com/StructureMap/refresh'
       );
       await client.update(structureMap);
 
       // Refresh
-      const refreshed = await provider.refreshUserMapping('test-refresh-map');
+      const refreshed = await provider.refreshUserMapping('testRefreshMap');
       expect(refreshed?.expression).toBe('$output = { version: 2 }');
       
-      mapping = provider.getUserMapping('test-refresh-map');
+      mapping = provider.getUserMapping('testRefreshMap');
       expect(mapping?.expression).toBe('$output = { version: 2 }');
     });
   });
@@ -183,7 +183,7 @@ describe('Server Integration Tests', () => {
       const createPromises = [];
       for (let i = 0; i < 250; i++) {
         const structureMap = createFumeStructureMap(
-          `pagination-test-${i}`,
+          `paginationTest${i}`,
           `$output = { index: ${i} }`,
           `http://test.example.com/StructureMap/pagination-${i}`
         );
@@ -215,9 +215,9 @@ describe('Server Integration Tests', () => {
       expect(mappings.length).toBeGreaterThanOrEqual(250);
       
       // Verify some specific mappings exist
-      expect(provider.getUserMapping('pagination-test-0')).toBeDefined();
-      expect(provider.getUserMapping('pagination-test-100')).toBeDefined();
-      expect(provider.getUserMapping('pagination-test-249')).toBeDefined();
+      expect(provider.getUserMapping('paginationTest0')).toBeDefined();
+      expect(provider.getUserMapping('paginationTest100')).toBeDefined();
+      expect(provider.getUserMapping('paginationTest249')).toBeDefined();
     }, 300000); // 5 minute timeout for this test
   });
 });
