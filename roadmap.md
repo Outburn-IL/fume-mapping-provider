@@ -1,0 +1,12 @@
+## Automatic change tracking
+Instead of manual optimistic cache updates by downstream consumers, the module should switch to read-only with periodic checks for file changes in mapping folder (aliases included) and poll the FHIR server for resource updates and refresh local cache automatically. This will also make the `local` source type in alias metadate obsolete.
+The resource change tracking should be based on a subscription-like polling mechanism (using a search query and lastUpdated).
+File tracking must be done in a reliable, cross platform way that also supports running in k8s where several pods read from a shared volume. This should be done without electing a "leader" pod. It can be a naive implementation since mappings folder is not expected to have more that ~50-200 files.
+Once this is implemented, all methods that allow update/delete of aliases or mappings should be removed.
+Manual full refreshes should still be supported, just not the optimistic local cache-only key-specific mapping/alias updates, creates or deletes.
+
+## JSON values
+Support file-based mappings that are actually just JSON files. These "mappings" are not text files, they are expected to be valid JSON and hold the actual parsed json value in-memory instead of the raw file content (parsed value could still end up as a json string though! If the file is a valid, double quoted and properly escaped json string). The differentiation is by the file extensions - downstream consumers will see that the extension is json and will need to handle the fact that the value can be any json value. If it's not a json file then it will be expected to be a the raw file content as a string.
+Since json extension for mapping is forbidden anyway, this feature can live safely side-by-side with the mapping files. The only things that must be handled are:
+1. skip the reserved file name `aliases.json`. This is still treated as an alias key:value container object and not as a named "mapping", ever. This means `aliases` shall not appear in the user mapping lists returned by any method.
+2. collision with actual mapping files can happen (e.g `myMap.json` + `myMap.fume` both exist in folder). JSON should override mapping in this case, but also emit a warning (if logger provided). A mppping name `aliases` is still legal, so a user can store a file named `aliases.fume` and it will be loaded as a regular user mapping (not ignored).

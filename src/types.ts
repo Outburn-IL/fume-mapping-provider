@@ -41,8 +41,12 @@ export interface UserMappingMetadata {
  * A complete user mapping with expression and metadata
  */
 export interface UserMapping extends UserMappingMetadata {
-  /** The FUME expression */
-  expression: string;
+  /**
+   * Mapping value.
+   * - For text-based mappings (e.g. .fume): string
+   * - For JSON mappings (*.json): parsed JSON value (can be string/object/array/number/boolean/null)
+   */
+  expression: unknown;
 }
 
 /**

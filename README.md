@@ -94,6 +94,15 @@ await provider.refreshUserMapping('my-mapping-key', updatedMapping);
 await provider.refreshUserMapping('deleted-key', null);
 ```
 
+### JSON Mapping Files (*.json)
+
+If `mappingsFolder` is configured, the provider also loads `*.json` files from that folder as **JSON-valued mappings**.
+
+- The mapping key is the filename without `.json`
+- The mapping value is the parsed JSON value (object/array/string/number/boolean/null)
+- The reserved filename `aliases.json` is **never** treated as a mapping
+- If both `myMap.json` and `myMap.fume` exist, the JSON mapping overrides the text mapping (a warning is logged if a logger is provided)
+
 ### Get User Mappings (Lightning Fast ⚡)
 
 ```typescript

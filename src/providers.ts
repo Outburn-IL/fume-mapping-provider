@@ -1,6 +1,8 @@
 import { UserMapping, PackageMapping, StructureMap, GetPackageMappingOptions, ConceptMap, AliasObject } from './types';
 import { Logger } from '@outburn/types';
 import { structureMapToExpression, conceptMapToAliasObject } from './converters';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 /**
  * Validate that a StructureMap is a FUME mapping
@@ -67,6 +69,8 @@ export class UserMappingProvider {
   // Combined with KEY_REGEX this becomes: start with letter, then alnum only.
   private static readonly FILE_MAPPING_KEY_REGEX = /^[A-Za-z][A-Za-z0-9]*$/;
   private static readonly FILE_MAPPING_KEY_MAX_LENGTH = 64;
+  private static readonly JSON_EXTENSION = '.json';
+  private static readonly RESERVED_ALIASES_JSON = 'aliases.json';
   
   constructor(
     private mappingsFolder: string | undefined,
@@ -119,6 +123,16 @@ export class UserMappingProvider {
         }
         mappings.set(key, mapping);
       }
+
+      // Load from JSON files (overrides file + server)
+      const jsonMappings = await this.loadJsonFileMappings();
+      for (const [key, mapping] of jsonMappings) {
+        const existing = mappings.get(key);
+        if (existing) {
+          this.logger?.warn?.(`JSON mapping '${key}' overrides ${existing.source} mapping with same key`);
+        }
+        mappings.set(key, mapping);
+      }
     }
     
     return mappings;
@@ -129,8 +143,14 @@ export class UserMappingProvider {
    * Checks both file and server (file takes precedence)
    */
   async refreshMapping(key: string): Promise<UserMapping | null> {
-    // Check file first
+    // Check JSON first (highest priority file source)
     if (this.mappingsFolder) {
+      const jsonMapping = await this.loadJsonFileMapping(key);
+      if (jsonMapping) {
+        return jsonMapping;
+      }
+
+      // Then check text-based file mapping
       const fileMapping = await this.loadFileMapping(key);
       if (fileMapping) {
         return fileMapping;
@@ -227,6 +247,102 @@ export class UserMappingProvider {
     } catch (_error) {
       /* istanbul ignore next */
       // File not found
+      return null;
+    }
+  }
+
+  private async loadJsonFileMappings(): Promise<Map<string, UserMapping>> {
+    const mappings = new Map<string, UserMapping>();
+
+    /* istanbul ignore if */
+    if (!this.mappingsFolder) {
+      return mappings;
+    }
+
+    try {
+      const files = await fs.readdir(this.mappingsFolder);
+      const jsonFiles = files.filter((f: string) => f.toLowerCase().endsWith(UserMappingProvider.JSON_EXTENSION));
+
+      for (const file of jsonFiles) {
+        if (file.toLowerCase() === UserMappingProvider.RESERVED_ALIASES_JSON) {
+          continue;
+        }
+
+        const key = path.basename(file, UserMappingProvider.JSON_EXTENSION);
+
+        if (!this.isValidKey(key)) {
+          this.logger?.warn?.(
+            `Ignoring JSON mapping file '${file}' due to invalid mapping name '${key}' (must match ${UserMappingProvider.KEY_REGEX}).`
+          );
+          continue;
+        }
+
+        try {
+          const filePath = path.join(this.mappingsFolder, file);
+          const raw = await fs.readFile(filePath, 'utf-8');
+
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(raw);
+          } catch (error) {
+            this.logger?.warn?.(`Invalid JSON mapping file '${file}'; ignoring. ${String(error)}`);
+            continue;
+          }
+
+          mappings.set(key, {
+            key,
+            expression: parsed,
+            source: 'file',
+            filename: file
+          });
+        } catch (error) {
+          this.logger?.warn?.(`Failed to load JSON mapping from file ${file}; ignoring. ${String(error)}`);
+        }
+      }
+    } catch (error) {
+      /* istanbul ignore next */
+      this.logger?.error?.(`Failed to read mappings folder ${this.mappingsFolder}:`, error);
+    }
+
+    return mappings;
+  }
+
+  private async loadJsonFileMapping(key: string): Promise<UserMapping | null> {
+    /* istanbul ignore if */
+    if (!this.mappingsFolder) {
+      return null;
+    }
+
+    // Reserved: aliases.json is not a mapping
+    if (key === 'aliases') {
+      return null;
+    }
+
+    if (!this.isValidKey(key)) {
+      this.logger?.warn?.(
+        `Ignoring JSON mapping refresh for invalid mapping name '${key}' (must match ${UserMappingProvider.KEY_REGEX}).`
+      );
+      return null;
+    }
+
+    const filename = `${key}${UserMappingProvider.JSON_EXTENSION}`;
+    const filePath = path.join(this.mappingsFolder, filename);
+
+    try {
+      const raw = await fs.readFile(filePath, 'utf-8');
+      try {
+        const parsed = JSON.parse(raw);
+        return {
+          key,
+          expression: parsed,
+          source: 'file',
+          filename
+        };
+      } catch (error) {
+        this.logger?.warn?.(`Invalid JSON mapping file '${filename}'; ignoring. ${String(error)}`);
+        return null;
+      }
+    } catch (_error) {
       return null;
     }
   }
