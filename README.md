@@ -150,9 +150,13 @@ const metadata = await provider.getPackageMappingsMetadata();
 ### Overview
 
 Aliases are simple key-value string mappings stored in a special ConceptMap resource on the FHIR server. Unlike mappings, aliases are:
-- **Server-only**: Not loaded from files or packages
+- **Server + File**: Loaded from the FHIR server and/or an optional `aliases.json` file in `mappingsFolder`
 - **Consolidated**: Always served as a single object
 - **Cached**: Loaded once during initialization for fast access
+
+When both server and file sources are configured:
+- **File aliases override server aliases** on key collision (a warning is logged if a logger is provided)
+- **Server aliases override built-in aliases**
 
 ### Alias Resource Structure
 
@@ -182,6 +186,10 @@ The server is queried with: `GET [baseUrl]/ConceptMap?context=http://codes.fume.
 const aliases = provider.getAliases();
 // Returns: { [key: string]: string }
 
+// Get all aliases with per-alias metadata (source + sourceType)
+const aliasesWithMeta = provider.getAliasesWithMetadata();
+// Returns: { [key: string]: { value: string; sourceType: 'file'|'server'|'builtIn'|'local'; source: string } }
+
 // Get the ConceptMap id used for server aliases (if loaded)
 // Downstream consumers can use this id when updating the alias ConceptMap
 const aliasResourceId = provider.getAliasResourceId();
@@ -195,10 +203,34 @@ const aliasResourceId = provider.getAliasResourceId();
 // }
 ```
 
+### File Aliases (`aliases.json`)
+
+If `mappingsFolder` is configured, the provider will look for a special `aliases.json` file inside it.
+
+Rules:
+- If `mappingsFolder` is not set, file aliases are not supported.
+- If `aliases.json` is missing, no file aliases are loaded.
+- If `aliases.json` exists but is invalid, a warning is logged and the file is ignored.
+
+Example `aliases.json`:
+
+```json
+{
+  "patientSystemUrl": "http://example.com/patients",
+  "defaultLanguage": "en-US",
+  "apiVersion": "v1"
+}
+```
+
+Validation:
+- Must be a JSON object
+- Keys must match `^[A-Za-z0-9_]+$` (no whitespace or operators like `-` or `.`)
+- Values must be strings
+
 ### Reload Aliases
 
 ```typescript
-// Reload from server (updates cache)
+// Reload from configured sources (server and/or mappingsFolder)
 await provider.reloadAliases();
 ```
 
@@ -374,6 +406,7 @@ new FumeMappingProvider(config: FumeMappingProviderConfig)
 - `registerAlias(name: string, value: string): void` - Register/update a single alias (optimistic cache update)
 - `deleteAlias(name: string): void` - Delete a specific alias from cache
 - `getAliases(): AliasObject` - Get all cached aliases as single object
+- `getAliasesWithMetadata(): AliasObjectWithMetadata` - Get all cached aliases with metadata
 - `getAliasResourceId(): string | undefined` - Get ConceptMap id for server aliases (if loaded)
 
 **Converters:**
@@ -388,7 +421,7 @@ new FumeMappingProvider(config: FumeMappingProviderConfig)
 ```typescript
 interface FumeMappingProviderConfig {
   mappingsFolder?: string;           // Path to .fume files
-  fileExtension?: string;            // Default: '.fume'
+  fileExtension?: string;            // Default: '.fume' ('.json' is reserved for aliases.json)
   fhirClient?: any;                  // FHIR client instance
   packageExplorer?: any;             // FPE instance
   logger?: Logger;                   // Optional logger
