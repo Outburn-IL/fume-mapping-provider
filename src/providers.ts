@@ -57,6 +57,16 @@ function isFumeMapping(structureMap: StructureMap): boolean {
  */
 export class UserMappingProvider {
   private fileExtension: string;
+
+  // Generic key validation used across aliases/mappings (safe for JSONata variable binding)
+  private static readonly KEY_REGEX = /^[A-Za-z0-9_]+$/;
+  // File-based mapping names must also satisfy FHIR Resource.id constraints and best practices:
+  // - max length 64
+  // - no underscores
+  // - must not start with a number (enforced)
+  // Combined with KEY_REGEX this becomes: start with letter, then alnum only.
+  private static readonly FILE_MAPPING_KEY_REGEX = /^[A-Za-z][A-Za-z0-9]*$/;
+  private static readonly FILE_MAPPING_KEY_MAX_LENGTH = 64;
   
   constructor(
     private mappingsFolder: string | undefined,
@@ -66,6 +76,23 @@ export class UserMappingProvider {
     fileExtension?: string
   ) {
     this.fileExtension = fileExtension || '.fume';
+
+    const ext = this.fileExtension.trim().toLowerCase();
+    if (ext === '.json' || ext === 'json') {
+      throw new Error(`Invalid fileExtension '${this.fileExtension}'. The '.json' extension is reserved (aliases.json).`);
+    }
+  }
+
+  private isValidKey(key: string): boolean {
+    return UserMappingProvider.KEY_REGEX.test(key);
+  }
+
+  private isValidFileMappingKey(key: string): boolean {
+    return (
+      this.isValidKey(key) &&
+      key.length <= UserMappingProvider.FILE_MAPPING_KEY_MAX_LENGTH &&
+      UserMappingProvider.FILE_MAPPING_KEY_REGEX.test(key)
+    );
   }
 
   /**
@@ -142,6 +169,14 @@ export class UserMappingProvider {
           const expression = await fs.readFile(filePath, 'utf-8');
           const key = path.basename(file, this.fileExtension);
 
+          if (!this.isValidFileMappingKey(key)) {
+            this.logger?.warn?.(
+              `Ignoring mapping file '${file}' due to invalid mapping name '${key}'. ` +
+                `Mapping names must match ${UserMappingProvider.KEY_REGEX} and also be a valid FHIR id (no underscores, <=64 chars, must not start with a number).`
+            );
+            continue;
+          }
+
           mappings.set(key, {
             key,
             expression,
@@ -164,6 +199,14 @@ export class UserMappingProvider {
   private async loadFileMapping(key: string): Promise<UserMapping | null> {
     /* istanbul ignore if */
     if (!this.mappingsFolder) {
+      return null;
+    }
+
+    if (!this.isValidFileMappingKey(key)) {
+      this.logger?.warn?.(
+        `Ignoring file mapping refresh for invalid mapping name '${key}'. ` +
+          `Mapping names must match ${UserMappingProvider.KEY_REGEX} and also be a valid FHIR id (no underscores, <=64 chars, must not start with a number).`
+      );
       return null;
     }
     
@@ -211,6 +254,13 @@ export class UserMappingProvider {
             continue;
           }
           
+          if (!this.isValidKey(structureMap.id)) {
+            this.logger?.warn?.(
+              `Ignoring server mapping '${structureMap.id}' due to invalid mapping name (must match ${UserMappingProvider.KEY_REGEX}).`
+            );
+            continue;
+          }
+
           const expression = structureMapToExpression(structureMap);
 
           if (expression) {
@@ -241,12 +291,25 @@ export class UserMappingProvider {
     if (!this.fhirClient) {
       return null;
     }
+
+    if (!this.isValidKey(key)) {
+      this.logger?.warn?.(
+        `Ignoring server mapping refresh for invalid mapping name '${key}' (must match ${UserMappingProvider.KEY_REGEX}).`
+      );
+      return null;
+    }
     
     try {
       const serverUrl = this.fhirClient.getBaseUrl();
       const structureMap = await this.fhirClient.read('StructureMap', key, { noCache: true }) as StructureMap;
 
       if (structureMap && isFumeMapping(structureMap)) {
+        if (!this.isValidKey(structureMap.id)) {
+          this.logger?.warn?.(
+            `Ignoring server mapping '${structureMap.id}' due to invalid mapping name (must match ${UserMappingProvider.KEY_REGEX}).`
+          );
+          return null;
+        }
         const expression = structureMapToExpression(structureMap);
         if (expression) {
           return {

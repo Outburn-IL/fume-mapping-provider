@@ -173,6 +173,37 @@ export interface AliasObject {
 }
 
 /**
+ * Alias source type.
+ * - 'file'   : Loaded from aliases.json in mappingsFolder
+ * - 'server' : Loaded from ConceptMap on FHIR server
+ * - 'builtIn': Bundled defaults
+ * - 'local'  : Optimistic runtime override via registerAlias
+ */
+export type AliasSourceType = 'file' | 'server' | 'builtIn' | 'local';
+
+/**
+ * Alias entry with metadata.
+ */
+export interface AliasWithMetadata {
+  value: string;
+  sourceType: AliasSourceType;
+  /**
+   * String pointing to the source.
+   * - server: `${baseUrl}/ConceptMap/${id}`
+   * - file: absolute path to aliases.json
+   * - builtIn/local: descriptive identifier
+   */
+  source: string;
+}
+
+/**
+ * Alias object with per-alias metadata.
+ */
+export interface AliasObjectWithMetadata {
+  [key: string]: AliasWithMetadata;
+}
+
+/**
  * FHIR ConceptMap resource (simplified)
  */
 export interface ConceptMap extends Resource {

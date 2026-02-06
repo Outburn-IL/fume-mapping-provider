@@ -10,6 +10,9 @@ export {
   StructureMap,
   ConceptMap,
   AliasObject,
+  AliasWithMetadata,
+  AliasObjectWithMetadata,
+  AliasSourceType,
   FumeMappingProviderConfig,
   GetPackageMappingOptions
 } from './types';
