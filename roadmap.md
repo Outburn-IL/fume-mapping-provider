@@ -7,7 +7,7 @@ This replaces consumer-driven, optimistic “I already changed the external stat
 
 ### High-level behavior
 The module maintains a cache of:
-- **Aliases** (resolved from one or more sources; may include a server ConceptMap and/or a file like `aliases.json` depending on current behavior. Precedence-based key collision resoved)
+- **Aliases** (resolved from one or more sources; may include a server ConceptMap and/or a file like `aliases.json` depending on current behavior. Precedence-based key collision resolved)
 - **Mappings** (StructureMaps from server and mapping files from disk, including JSON mapping files)
 
 It keeps those caches fresh via:
