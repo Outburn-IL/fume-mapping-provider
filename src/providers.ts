@@ -129,7 +129,7 @@ export class UserMappingProvider {
       for (const [key, mapping] of jsonMappings) {
         const existing = mappings.get(key);
         if (existing) {
-          this.logger?.warn?.(`JSON mapping '${key}' overrides ${existing.source} mapping with same key`);
+          this.logger?.warn?.(`JSON mapping '${key}' overrides ${existing.sourceType} mapping with same key`);
         }
         mappings.set(key, mapping);
       }
@@ -200,8 +200,8 @@ export class UserMappingProvider {
           mappings.set(key, {
             key,
             expression,
-            source: 'file',
-            filename: file
+            sourceType: 'file',
+            source: path.resolve(this.mappingsFolder, file)
           });
         } catch (error) {
           /* istanbul ignore next */
@@ -241,8 +241,8 @@ export class UserMappingProvider {
       return {
         key,
         expression,
-        source: 'file',
-        filename
+        sourceType: 'file',
+        source: path.resolve(this.mappingsFolder, filename)
       };
     } catch (_error) {
       /* istanbul ignore next */
@@ -292,8 +292,8 @@ export class UserMappingProvider {
           mappings.set(key, {
             key,
             expression: parsed,
-            source: 'file',
-            filename: file
+            sourceType: 'file',
+            source: path.resolve(this.mappingsFolder, file)
           });
         } catch (error) {
           this.logger?.warn?.(`Failed to load JSON mapping from file ${file}; ignoring. ${String(error)}`);
@@ -335,8 +335,8 @@ export class UserMappingProvider {
         return {
           key,
           expression: parsed,
-          source: 'file',
-          filename
+          sourceType: 'file',
+          source: path.resolve(this.mappingsFolder, filename)
         };
       } catch (error) {
         this.logger?.warn?.(`Invalid JSON mapping file '${filename}'; ignoring. ${String(error)}`);
@@ -356,6 +356,7 @@ export class UserMappingProvider {
     
     try {
       const serverUrl = this.fhirClient.getBaseUrl();
+      const normalizedServerUrl = (typeof serverUrl === 'string' ? serverUrl : '').replace(/\/$/, '');
       this.logger?.debug?.(`Loading mappings from FHIR server ${serverUrl}`);
       
       // Search for all StructureMap resources using fetchAll for automatic pagination
@@ -383,8 +384,10 @@ export class UserMappingProvider {
             mappings.set(structureMap.id, {
               key: structureMap.id,
               expression,
-              source: 'server',
-              sourceServer: serverUrl,
+              sourceType: 'server',
+              source: normalizedServerUrl
+                ? `${normalizedServerUrl}/StructureMap/${structureMap.id}`
+                : (structureMap.url || 'server'),
               name: structureMap.name,
               url: structureMap.url
             });
@@ -417,6 +420,7 @@ export class UserMappingProvider {
     
     try {
       const serverUrl = this.fhirClient.getBaseUrl();
+      const normalizedServerUrl = (typeof serverUrl === 'string' ? serverUrl : '').replace(/\/$/, '');
       const structureMap = await this.fhirClient.read('StructureMap', key, { noCache: true }) as StructureMap;
 
       if (structureMap && isFumeMapping(structureMap)) {
@@ -431,8 +435,10 @@ export class UserMappingProvider {
           return {
             key: structureMap.id,
             expression,
-            source: 'server',
-            sourceServer: serverUrl,
+            sourceType: 'server',
+            source: normalizedServerUrl
+              ? `${normalizedServerUrl}/StructureMap/${structureMap.id}`
+              : (structureMap.url || 'server'),
             name: structureMap.name,
             url: structureMap.url
           };

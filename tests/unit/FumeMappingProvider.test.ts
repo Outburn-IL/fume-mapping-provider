@@ -105,8 +105,8 @@ describe('FumeMappingProvider', () => {
 
     it('should load user mappings on initialize', async () => {
       const mockMappings = new Map([
-        ['map1', { key: 'map1', expression: 'expr1', source: 'file' as const, filename: 'map1.fume' }],
-        ['map2', { key: 'map2', expression: 'expr2', source: 'server' as const, sourceServer: 'http://test.com' }]
+        ['map1', { key: 'map1', expression: 'expr1', sourceType: 'file' as const, source: '/test/mappings/map1.fume' }],
+        ['map2', { key: 'map2', expression: 'expr2', sourceType: 'server' as const, source: 'http://test.com/StructureMap/map2' }]
       ]);
 
       mockUserProvider.loadMappings.mockResolvedValue(mockMappings);
@@ -120,7 +120,7 @@ describe('FumeMappingProvider', () => {
 
     it('should get user mapping by key', async () => {
       const mockMappings = new Map([
-        ['test-key', { key: 'test-key', expression: 'test-expr', source: 'file' as const, filename: 'test.fume' }]
+        ['test-key', { key: 'test-key', expression: 'test-expr', sourceType: 'file' as const, source: '/test/mappings/test.fume' }]
       ]);
 
       mockUserProvider.loadMappings.mockResolvedValue(mockMappings);
@@ -143,12 +143,12 @@ describe('FumeMappingProvider', () => {
 
     it('should reload user mappings', async () => {
       const initialMappings = new Map([
-        ['map1', { key: 'map1', expression: 'expr1', source: 'file' as const, filename: 'map1.fume' }]
+        ['map1', { key: 'map1', expression: 'expr1', sourceType: 'file' as const, source: '/test/mappings/map1.fume' }]
       ]);
 
       const reloadedMappings = new Map([
-        ['map1', { key: 'map1', expression: 'expr1-updated', source: 'file' as const, filename: 'map1.fume' }],
-        ['map2', { key: 'map2', expression: 'expr2', source: 'file' as const, filename: 'map2.fume' }]
+        ['map1', { key: 'map1', expression: 'expr1-updated', sourceType: 'file' as const, source: '/test/mappings/map1.fume' }],
+        ['map2', { key: 'map2', expression: 'expr2', sourceType: 'file' as const, source: '/test/mappings/map2.fume' }]
       ]);
 
       mockUserProvider.loadMappings
@@ -165,15 +165,15 @@ describe('FumeMappingProvider', () => {
 
     it('should refresh specific user mapping', async () => {
       const initialMappings = new Map([
-        ['refresh-test', { key: 'refresh-test', expression: 'old', source: 'file' as const, filename: 'test.fume' }]
+        ['refresh-test', { key: 'refresh-test', expression: 'old', sourceType: 'file' as const, source: '/test/mappings/test.fume' }]
       ]);
 
       mockUserProvider.loadMappings.mockResolvedValue(initialMappings);
       mockUserProvider.refreshMapping.mockResolvedValue({
         key: 'refresh-test',
         expression: 'new',
-        source: 'file',
-        filename: 'test.fume'
+        sourceType: 'file',
+        source: '/test/mappings/test.fume'
       });
 
       await provider.initialize();
@@ -185,7 +185,7 @@ describe('FumeMappingProvider', () => {
 
     it('should remove mapping from cache when refresh returns null', async () => {
       const initialMappings = new Map([
-        ['deleted-map', { key: 'deleted-map', expression: 'expr', source: 'file' as const, filename: 'test.fume' }]
+        ['deleted-map', { key: 'deleted-map', expression: 'expr', sourceType: 'file' as const, source: '/test/mappings/test.fume' }]
       ]);
 
       mockUserProvider.loadMappings.mockResolvedValue(initialMappings);
@@ -200,7 +200,7 @@ describe('FumeMappingProvider', () => {
 
     it('should update cache directly when mapping provided (optimistic update)', async () => {
       const initialMappings = new Map([
-        ['optimistic-test', { key: 'optimistic-test', expression: 'old', source: 'server' as const, sourceServer: 'http://test.com' }]
+        ['optimistic-test', { key: 'optimistic-test', expression: 'old', sourceType: 'server' as const, source: 'http://test.com/StructureMap/optimistic-test' }]
       ]);
 
       mockUserProvider.loadMappings.mockResolvedValue(initialMappings);
@@ -212,8 +212,8 @@ describe('FumeMappingProvider', () => {
       const updatedMapping = {
         key: 'optimistic-test',
         expression: 'new-from-client',
-        source: 'server' as const,
-        sourceServer: 'http://test.com'
+        sourceType: 'server' as const,
+        source: 'http://test.com/StructureMap/optimistic-test'
       };
 
       const result = await provider.refreshUserMapping('optimistic-test', updatedMapping);
@@ -225,7 +225,7 @@ describe('FumeMappingProvider', () => {
 
     it('should remove mapping when null provided as optimistic update', async () => {
       const initialMappings = new Map([
-        ['to-delete', { key: 'to-delete', expression: 'expr', source: 'server' as const, sourceServer: 'http://test.com' }]
+        ['to-delete', { key: 'to-delete', expression: 'expr', sourceType: 'server' as const, source: 'http://test.com/StructureMap/to-delete' }]
       ]);
 
       mockUserProvider.loadMappings.mockResolvedValue(initialMappings);
@@ -246,8 +246,8 @@ describe('FumeMappingProvider', () => {
         ['map1', { 
           key: 'map1', 
           expression: 'long expression here', 
-          source: 'file' as const, 
-          filename: 'map1.fume',
+          sourceType: 'file' as const, 
+          source: '/test/mappings/map1.fume',
           name: 'Map1',
           url: 'http://test.com/map1'
         }]
@@ -261,8 +261,8 @@ describe('FumeMappingProvider', () => {
       expect(metadata).toHaveLength(1);
       expect(metadata[0]).not.toHaveProperty('expression');
       expect(metadata[0]).toHaveProperty('key');
+      expect(metadata[0]).toHaveProperty('sourceType');
       expect(metadata[0]).toHaveProperty('source');
-      expect(metadata[0]).toHaveProperty('filename');
       expect(metadata[0]).toHaveProperty('name');
       expect(metadata[0]).toHaveProperty('url');
     });

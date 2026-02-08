@@ -66,7 +66,7 @@ describe('File/Server Collision Tests', () => {
 
     const mappings = provider.getUserMappings();
     expect(mappings.length).toBe(3);
-    expect(mappings.every(m => m.source === 'file')).toBe(true);
+    expect(mappings.every(m => m.sourceType === 'file')).toBe(true);
     
     const keys = provider.getUserMappingKeys();
     expect(keys).toContain('fileMapping1');
@@ -158,7 +158,7 @@ describe('File/Server Collision Tests', () => {
     // Verify file mapping takes precedence
     const mapping = provider.getUserMapping('serverMappingCollision');
     expect(mapping).toBeDefined();
-    expect(mapping!.source).toBe('file');
+    expect(mapping!.sourceType).toBe('file');
     expect(mapping!.expression).toContain('* type = \'batch\'');
     expect(mapping!.expression).not.toContain('source: "server"');
   });
@@ -238,7 +238,7 @@ describe('File/Server Collision Tests', () => {
 
       // Should have file version
       let mapping = provider.getUserMapping('refreshCollisionTest');
-      expect(mapping?.source).toBe('file');
+      expect(mapping?.sourceType).toBe('file');
       expect(mapping?.expression).toContain('"source": "file"');
 
       // Update file
@@ -247,7 +247,7 @@ describe('File/Server Collision Tests', () => {
       // Refresh - should still get file version
       await provider.refreshUserMapping('refreshCollisionTest');
       mapping = provider.getUserMapping('refreshCollisionTest');
-      expect(mapping?.source).toBe('file');
+      expect(mapping?.sourceType).toBe('file');
       expect(mapping?.expression).toContain('"updated": true');
 
       // Delete file
@@ -256,7 +256,7 @@ describe('File/Server Collision Tests', () => {
       // Refresh - should now fall back to server version
       await provider.refreshUserMapping('refreshCollisionTest');
       mapping = provider.getUserMapping('refreshCollisionTest');
-      expect(mapping?.source).toBe('server');
+      expect(mapping?.sourceType).toBe('server');
       expect(mapping?.expression).toContain('"source": "server"');
     } finally {
       // Cleanup test file if it exists
@@ -338,8 +338,8 @@ describe('File/Server Collision Tests', () => {
     const metadata = provider.getUserMappingsMetadata();
     
     // Should have both file and server mappings
-    const fileMappings = metadata.filter(m => m.source === 'file');
-    const serverMappings = metadata.filter(m => m.source === 'server');
+    const fileMappings = metadata.filter(m => m.sourceType === 'file');
+    const serverMappings = metadata.filter(m => m.sourceType === 'server');
     
     expect(fileMappings.length).toBeGreaterThan(0);
     expect(serverMappings.length).toBeGreaterThan(0);
@@ -347,14 +347,12 @@ describe('File/Server Collision Tests', () => {
     // Verify file mapping metadata
     const fileMapping = fileMappings.find(m => m.key === 'fileMapping1');
     expect(fileMapping).toBeDefined();
-    expect(fileMapping!.filename).toBe('fileMapping1.fume');
-    expect(fileMapping!.sourceServer).toBeUndefined();
+    expect(fileMapping!.source).toBe(path.resolve(MAPPINGS_FOLDER, 'fileMapping1.fume'));
 
     // Verify server mapping metadata
     const serverMapping = serverMappings.find(m => m.key === 'mixedServer1');
     expect(serverMapping).toBeDefined();
     expect(serverMapping!.url).toBe('http://test.example.com/StructureMap/mixedServer1');
-    expect(serverMapping!.sourceServer).toBe(HAPI_BASE_URL);
-    expect(serverMapping!.filename).toBeUndefined();
+    expect(serverMapping!.source).toBe(`${HAPI_BASE_URL}/StructureMap/mixedServer1`);
   });
 });

@@ -139,7 +139,7 @@ describe('Server Integration Tests', () => {
       const mappings = provider.getUserMappings();
       expect(mappings.length).toBe(1);
       expect(mappings[0].key).toBe('testServerMap1');
-      expect(mappings[0].source).toBe('server');
+      expect(mappings[0].sourceType).toBe('server');
       expect(mappings[0].expression).toBe('$output = { test: "server" }');
       expect(mappings[0].url).toBe('http://test.example.com/StructureMap/test-1');
     });

@@ -190,9 +190,8 @@ export class FumeMappingProvider {
   getUserMappingsMetadata(): UserMappingMetadata[] {
     return this.getUserMappings().map(m => ({
       key: m.key,
+      sourceType: m.sourceType,
       source: m.source,
-      filename: m.filename,
-      sourceServer: m.sourceServer,
       name: m.name,
       url: m.url
     }));

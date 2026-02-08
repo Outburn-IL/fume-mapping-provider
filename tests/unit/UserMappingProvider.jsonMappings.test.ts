@@ -16,7 +16,8 @@ describe('UserMappingProvider JSON mappings', () => {
 
     const mapping = mappings.get('myMap');
     expect(mapping).toBeDefined();
-    expect(mapping!.filename).toBe('myMap.json');
+    expect(mapping!.sourceType).toBe('file');
+    expect(mapping!.source).toBe(path.resolve(folder, 'myMap.json'));
     expect(mapping!.expression).toEqual({ a: 1, b: true });
   });
 
@@ -41,7 +42,8 @@ describe('UserMappingProvider JSON mappings', () => {
     const provider = new UserMappingProvider(folder, undefined, logger, '.fume');
     const mappings = await provider.loadMappings();
 
-    expect(mappings.get('dup')!.filename).toBe('dup.json');
+    expect(mappings.get('dup')!.sourceType).toBe('file');
+    expect(mappings.get('dup')!.source).toBe(path.resolve(folder, 'dup.json'));
     expect(mappings.get('dup')!.expression).toEqual({ kind: 'json' });
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("JSON mapping 'dup' overrides"));
   });

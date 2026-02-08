@@ -21,14 +21,15 @@ export interface UserMappingMetadata {
   /** Unique key (ID) for the mapping */
   key: string;
   
-  /** Source: 'file' or 'server' */
-  source: 'file' | 'server';
+  /** Source type: 'file' or 'server' */
+  sourceType: 'file' | 'server';
   
-  /** Filename (for file sources) */
-  filename?: string;
-  
-  /** Source FHIR server URL (for server sources) */
-  sourceServer?: string;
+  /**
+   * String pointing to the exact source location.
+   * - server: full URL of the StructureMap resource
+   * - file: absolute path to the mapping file
+   */
+  source: string;
   
   /** StructureMap resource name (if applicable) */
   name?: string;
