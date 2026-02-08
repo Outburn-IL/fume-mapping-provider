@@ -33,7 +33,7 @@
     "url": "git+https://github.com/Outburn-IL/fume-mapping-provider.git"
   },
   "devDependencies": {
-    "@outburn/fhir-client": "^1.3.0",
+    "@outburn/fhir-client": "^1.4.0",
     "@outburn/types": "^0.1.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.2.2",
