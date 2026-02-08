@@ -622,7 +622,8 @@ export class AliasProvider {
   constructor(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private fhirClient: any | undefined,
-    private logger?: Logger
+    private logger?: Logger,
+    private aliasResourceId?: string
   ) {}
 
   /**
@@ -639,6 +640,26 @@ export class AliasProvider {
     try {
       const serverUrl = this.fhirClient.getBaseUrl();
       this.logger?.debug?.(`Loading aliases from FHIR server ${serverUrl}`);
+
+      const configuredId = this.aliasResourceId?.trim();
+      if (configuredId) {
+        try {
+          const conceptMap = await this.fhirClient.read('ConceptMap', configuredId, { noCache: true }) as ConceptMap;
+          if (!conceptMap) {
+            this.logger?.debug?.(`Alias ConceptMap '${configuredId}' not found on server`);
+            return { aliases: {}, resourceId: undefined };
+          }
+
+          const aliases = conceptMapToAliasObject(conceptMap, this.logger);
+          this.logger?.debug?.(
+            `Loaded ${Object.keys(aliases).length} alias(es) from server (ConceptMap id: ${conceptMap.id || configuredId})`
+          );
+          return { aliases, resourceId: conceptMap.id || configuredId };
+        } catch (error) {
+          this.logger?.error?.(`Failed to load alias ConceptMap '${configuredId}' from server ${serverUrl}:`, error);
+          return { aliases: {}, resourceId: undefined };
+        }
+      }
       
       // Search for ConceptMap with name=FumeAliases and context parameter
       const searchParams = {
@@ -657,12 +678,12 @@ export class AliasProvider {
       const aliasResources = resources.filter((cm: ConceptMap) => isFumeAliasResource(cm));
       
       if (aliasResources.length === 0) {
-        this.logger?.debug?.('No alias ConceptMap with correct useContext found');
+        this.logger?.debug?.('No alias ConceptMap with correct useContext found on server.');
         return { aliases: {}, resourceId: undefined };
       }
       
       if (aliasResources.length > 1) {
-        this.logger?.error?.(`Found ${aliasResources.length} alias ConceptMaps - expected exactly 1. Skipping alias loading.`);
+        this.logger?.error?.(`Found ${aliasResources.length} alias ConceptMaps - expected exactly 1. Skipping alias loading from server.`);
         return { aliases: {}, resourceId: undefined };
       }
       

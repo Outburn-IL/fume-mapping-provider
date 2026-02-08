@@ -77,7 +77,8 @@ export class FumeMappingProvider {
       this.logger?.info?.('Initializing alias provider');
       this.aliasProvider = new AliasProvider(
         this.config.fhirClient,
-        this.logger
+        this.logger,
+        this.config.aliasConceptMapId
       );
     }
   }

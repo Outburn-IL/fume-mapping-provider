@@ -58,6 +58,7 @@ const provider = new FumeMappingProvider({
   fileExtension: '.fume', // Optional, default is '.fume'
   fhirClient: fhirClient,
   packageExplorer: packageExplorer,
+  aliasConceptMapId: 'my-aliases-cm-id', // Optional, skips alias ConceptMap search
   canonicalBaseUrl: 'http://example.com', // Optional, default is 'http://example.com'
   logger: console // Optional
 });
@@ -434,6 +435,7 @@ interface FumeMappingProviderConfig {
   fhirClient?: any;                  // FHIR client instance
   packageExplorer?: any;             // FPE instance
   logger?: Logger;                   // Optional logger
+  aliasConceptMapId?: string;        // Optional ConceptMap id for aliases (skips search)
   canonicalBaseUrl?: string;         // Default: 'http://example.com'
 }
 ```

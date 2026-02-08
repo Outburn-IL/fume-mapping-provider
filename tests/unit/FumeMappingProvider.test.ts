@@ -434,7 +434,24 @@ describe('FumeMappingProvider', () => {
       const providersModule = require('../../src/providers');
       expect(providersModule.AliasProvider).toHaveBeenCalledWith(
         mockClient,
+        undefined,
         undefined
+      );
+    });
+
+    it('should pass configured alias ConceptMap id to AliasProvider', async () => {
+      const providersModule = require('../../src/providers');
+
+      const providerWithAliasId = new FumeMappingProvider({
+        fhirClient: mockClient,
+        aliasConceptMapId: 'alias-cm-99'
+      });
+
+      expect(providerWithAliasId).toBeDefined();
+      expect(providersModule.AliasProvider).toHaveBeenLastCalledWith(
+        mockClient,
+        undefined,
+        'alias-cm-99'
       );
     });
 

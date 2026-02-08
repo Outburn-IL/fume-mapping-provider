@@ -157,6 +157,9 @@ export interface FumeMappingProviderConfig {
   /** Optional logger instance for structured logging */
   logger?: Logger;
   
+  /** Optional ConceptMap resource id to use for aliases (skips search) */
+  aliasConceptMapId?: string;
+  
   /** Canonical base URL for generated FHIR resources (default: 'http://example.com') */
   canonicalBaseUrl?: string;
 }
