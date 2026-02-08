@@ -29,7 +29,10 @@ describe('Aliases Integration Tests', () => {
 
     provider = new FumeMappingProvider({
       fhirClient,
-      logger: console
+      logger: console,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
   });
 
@@ -137,43 +140,6 @@ describe('Aliases Integration Tests', () => {
     });
 
     expect(provider.getAliasResourceId()).toBe('fume-test-aliases');
-  });
-
-  it('should handle optimistic alias updates', async () => {
-    await provider.initialize();
-
-    provider.registerAlias('key1', 'value1');
-    provider.registerAlias('key2', 'value2');
-
-    const aliases = provider.getAliases();
-    expect(aliases).toEqual({
-      ...builtInAliases,
-      key1: 'value1',
-      key2: 'value2'
-    });
-  });
-
-  it('should handle alias deletion', async () => {
-    // Create aliases on server
-    const conceptMap = createConverterProvider('http://example.com').aliasObjectToConceptMap({
-      key1: 'value1',
-      key2: 'value2',
-      key3: 'value3'
-    });
-    conceptMap.id = 'fume-test-aliases';
-    try { await fhirClient.delete('ConceptMap', 'fume-test-aliases'); } catch {}
-    await fhirClient.update(conceptMap);
-
-    await provider.initialize();
-    
-    provider.deleteAlias('key2');
-
-    const aliases = provider.getAliases();
-    expect(aliases).toEqual({
-      ...builtInAliases,
-      key1: 'value1',
-      key3: 'value3'
-    });
   });
 
   it('should skip loading when multiple alias resources found', async () => {

@@ -88,6 +88,10 @@ export interface PackageMapping extends PackageMappingMetadata {
 export interface StructureMap extends EnrichedResource {
   resourceType: 'StructureMap';
   id: string;
+  meta?: {
+    versionId?: string;
+    lastUpdated?: string;
+  };
   url?: string;
   identifier?: Array<{
     use?: string;
@@ -163,6 +167,15 @@ export interface FumeMappingProviderConfig {
   
   /** Canonical base URL for generated FHIR resources (default: 'http://example.com') */
   canonicalBaseUrl?: string;
+
+  /** Polling interval for mapping/alias file changes (ms). Default: 5000. Set <=0 to disable. */
+  filePollingIntervalMs?: number;
+
+  /** Polling interval for FHIR server resources (ms). Default: 30000. Set <=0 to disable. */
+  serverPollingIntervalMs?: number;
+
+  /** Forced resync interval for full cache reload (ms). Default: 3600000. Set <=0 to disable. */
+  forcedResyncIntervalMs?: number;
 }
 
 /**
@@ -185,9 +198,8 @@ export interface AliasObject {
  * - 'file'   : Loaded from aliases.json in mappingsFolder
  * - 'server' : Loaded from ConceptMap on FHIR server
  * - 'builtIn': Bundled defaults
- * - 'local'  : Optimistic runtime override via registerAlias
  */
-export type AliasSourceType = 'file' | 'server' | 'builtIn' | 'local';
+export type AliasSourceType = 'file' | 'server' | 'builtIn';
 
 /**
  * Alias entry with metadata.
@@ -199,7 +211,7 @@ export interface AliasWithMetadata {
    * String pointing to the source.
    * - server: `${baseUrl}/ConceptMap/${id}`
    * - file: absolute path to aliases.json
-   * - builtIn/local: descriptive identifier
+   * - builtIn: descriptive identifier
    */
   source: string;
 }
@@ -217,6 +229,10 @@ export interface AliasObjectWithMetadata {
 export interface ConceptMap extends Resource {
   resourceType: 'ConceptMap';
   id?: string;
+  meta?: {
+    versionId?: string;
+    lastUpdated?: string;
+  };
   url?: string;
   name?: string;
   status?: string;

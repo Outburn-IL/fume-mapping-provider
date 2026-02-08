@@ -59,7 +59,10 @@ describe('File/Server Collision Tests', () => {
     });
     
     provider = new FumeMappingProvider({
-      mappingsFolder: MAPPINGS_FOLDER
+      mappingsFolder: MAPPINGS_FOLDER,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
 
     await provider.initialize();
@@ -145,7 +148,10 @@ describe('File/Server Collision Tests', () => {
     provider = new FumeMappingProvider({
       mappingsFolder: MAPPINGS_FOLDER,
       fhirClient: client,
-      logger: mockLogger
+      logger: mockLogger,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
 
     await provider.initialize();
@@ -231,7 +237,10 @@ describe('File/Server Collision Tests', () => {
     try {
       provider = new FumeMappingProvider({
         mappingsFolder: MAPPINGS_FOLDER,
-        fhirClient: client
+        fhirClient: client,
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
       });
 
       await provider.initialize();
@@ -330,7 +339,10 @@ describe('File/Server Collision Tests', () => {
 
     provider = new FumeMappingProvider({
       mappingsFolder: MAPPINGS_FOLDER,
-      fhirClient: client
+      fhirClient: client,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
 
     await provider.initialize();

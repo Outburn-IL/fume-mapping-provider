@@ -8,7 +8,7 @@ import * as path from 'path';
  * Validate that a StructureMap is a FUME mapping
  * Must have the correct useContext and fume expression extension
  */
-function isFumeMapping(structureMap: StructureMap): boolean {
+export function isFumeMapping(structureMap: StructureMap): boolean {
   // Check for fume expression in rule extensions
   /* istanbul ignore if */
   if (!structureMap.group || structureMap.group.length === 0) {
@@ -100,6 +100,20 @@ export class UserMappingProvider {
   }
 
   /**
+   * Check if a mapping key is valid for JSON mappings (generic key regex).
+   */
+  isValidJsonMappingKey(key: string): boolean {
+    return this.isValidKey(key) && key !== 'aliases';
+  }
+
+  /**
+   * Check if a mapping key is valid for text-based file mappings.
+   */
+  isValidFileMappingKeyForPolling(key: string): boolean {
+    return this.isValidFileMappingKey(key);
+  }
+
+  /**
    * Load all user mappings from file and server
    * File mappings override server mappings on key collision (with warning)
    */
@@ -168,6 +182,146 @@ export class UserMappingProvider {
     return null;
   }
 
+  /**
+   * Poll server mappings, optionally filtered by _lastUpdated.
+   */
+  async searchServerMappings(lastUpdated?: string): Promise<{
+    mappings: Map<string, UserMapping>;
+    metaByKey: Map<string, { versionId?: string; lastUpdated?: string }>;
+  }> {
+    const mappings = new Map<string, UserMapping>();
+    const metaByKey = new Map<string, { versionId?: string; lastUpdated?: string }>();
+
+    /* istanbul ignore if */
+    if (!this.fhirClient) {
+      return { mappings, metaByKey };
+    }
+
+    try {
+      const serverUrl = this.fhirClient.getBaseUrl();
+      const normalizedServerUrl = (typeof serverUrl === 'string' ? serverUrl : '').replace(/\/$/, '');
+      this.logger?.debug?.(`Polling mappings from FHIR server ${serverUrl}`);
+
+      const params: Record<string, string> = {};
+      if (lastUpdated) {
+        params._lastUpdated = `ge${lastUpdated}`;
+      }
+
+      const resources = await this.fhirClient.search('StructureMap', params, { fetchAll: true, noCache: true });
+
+      if (resources && Array.isArray(resources)) {
+        for (const structureMap of resources as StructureMap[]) {
+          if (!isFumeMapping(structureMap)) {
+            continue;
+          }
+
+          if (!this.isValidKey(structureMap.id)) {
+            this.logger?.warn?.(
+              `Ignoring server mapping '${structureMap.id}' due to invalid mapping name (must match ${UserMappingProvider.KEY_REGEX}).`
+            );
+            continue;
+          }
+
+          const expression = structureMapToExpression(structureMap);
+          if (!expression) {
+            continue;
+          }
+
+          mappings.set(structureMap.id, {
+            key: structureMap.id,
+            expression,
+            sourceType: 'server',
+            source: normalizedServerUrl
+              ? `${normalizedServerUrl}/StructureMap/${structureMap.id}`
+              : (structureMap.url || 'server'),
+            name: structureMap.name,
+            url: structureMap.url
+          });
+
+          metaByKey.set(structureMap.id, {
+            versionId: structureMap.meta?.versionId,
+            lastUpdated: structureMap.meta?.lastUpdated
+          });
+        }
+      }
+    } catch (error) {
+      /* istanbul ignore next */
+      const serverUrl = this.fhirClient.getBaseUrl();
+      /* istanbul ignore next */
+      this.logger?.error?.(`Failed to poll mappings from server ${serverUrl}:`, error);
+    }
+
+    return { mappings, metaByKey };
+  }
+
+  /**
+   * Conditional read for a specific StructureMap.
+   */
+  async conditionalReadServerMapping(
+    key: string,
+    condition: { versionId?: string; lastUpdated?: string }
+  ): Promise<{ status: number; mapping?: UserMapping; meta?: { versionId?: string; lastUpdated?: string } }> {
+    /* istanbul ignore if */
+    if (!this.fhirClient) {
+      return { status: 0 };
+    }
+
+    if (!this.isValidKey(key)) {
+      this.logger?.warn?.(
+        `Ignoring server mapping refresh for invalid mapping name '${key}' (must match ${UserMappingProvider.KEY_REGEX}).`
+      );
+      return { status: 0 };
+    }
+
+    try {
+      const serverUrl = this.fhirClient.getBaseUrl();
+      const normalizedServerUrl = (typeof serverUrl === 'string' ? serverUrl : '').replace(/\/$/, '');
+      const response = await this.fhirClient.conditionalRead('StructureMap', key, condition, { noCache: true });
+
+      if (response.status === 200 && response.resource) {
+        const structureMap = response.resource as StructureMap;
+
+        if (!isFumeMapping(structureMap)) {
+          return { status: 200 };
+        }
+
+        if (!this.isValidKey(structureMap.id)) {
+          this.logger?.warn?.(
+            `Ignoring server mapping '${structureMap.id}' due to invalid mapping name (must match ${UserMappingProvider.KEY_REGEX}).`
+          );
+          return { status: 200 };
+        }
+
+        const expression = structureMapToExpression(structureMap);
+        if (expression) {
+          return {
+            status: 200,
+            mapping: {
+              key: structureMap.id,
+              expression,
+              sourceType: 'server',
+              source: normalizedServerUrl
+                ? `${normalizedServerUrl}/StructureMap/${structureMap.id}`
+                : (structureMap.url || 'server'),
+              name: structureMap.name,
+              url: structureMap.url
+            },
+            meta: {
+              versionId: structureMap.meta?.versionId,
+              lastUpdated: structureMap.meta?.lastUpdated
+            }
+          };
+        }
+        return { status: 200 };
+      }
+
+      return { status: response.status };
+    } catch (_error) {
+      /* istanbul ignore next */
+      return { status: 0 };
+    }
+  }
+
   private async loadFileMappings(): Promise<Map<string, UserMapping>> {
     const mappings = new Map<string, UserMapping>();
     
@@ -216,7 +370,7 @@ export class UserMappingProvider {
     return mappings;
   }
 
-  private async loadFileMapping(key: string): Promise<UserMapping | null> {
+  async loadFileMapping(key: string): Promise<UserMapping | null> {
     /* istanbul ignore if */
     if (!this.mappingsFolder) {
       return null;
@@ -307,7 +461,7 @@ export class UserMappingProvider {
     return mappings;
   }
 
-  private async loadJsonFileMapping(key: string): Promise<UserMapping | null> {
+  async loadJsonFileMapping(key: string): Promise<UserMapping | null> {
     /* istanbul ignore if */
     if (!this.mappingsFolder) {
       return null;
@@ -342,6 +496,33 @@ export class UserMappingProvider {
         this.logger?.warn?.(`Invalid JSON mapping file '${filename}'; ignoring. ${String(error)}`);
         return null;
       }
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  /**
+   * Read raw JSON mapping file contents for change detection.
+   */
+  async readJsonFileRaw(key: string): Promise<string | null> {
+    /* istanbul ignore if */
+    if (!this.mappingsFolder) {
+      return null;
+    }
+
+    if (key === 'aliases') {
+      return null;
+    }
+
+    if (!this.isValidKey(key)) {
+      return null;
+    }
+
+    const filename = `${key}${UserMappingProvider.JSON_EXTENSION}`;
+    const filePath = path.join(this.mappingsFolder, filename);
+
+    try {
+      return await fs.readFile(filePath, 'utf-8');
     } catch (_error) {
       return null;
     }
@@ -637,10 +818,10 @@ export class AliasProvider {
    * @returns {{ aliases: AliasObject, resourceId?: string }} A promise that resolves to an object containing the resolved aliases
    * and the originating ConceptMap resource id, if available.
    */
-  async loadAliasesWithMetadata(): Promise<{ aliases: AliasObject; resourceId?: string }> {
+  async loadAliasesWithMetadata(): Promise<{ aliases: AliasObject; resourceId?: string; meta?: { versionId?: string; lastUpdated?: string } }> {
     /* istanbul ignore if */
     if (!this.fhirClient) {
-      return { aliases: {}, resourceId: undefined };
+      return { aliases: {}, resourceId: undefined, meta: undefined };
     }
     
     try {
@@ -653,17 +834,24 @@ export class AliasProvider {
           const conceptMap = await this.fhirClient.read('ConceptMap', configuredId, { noCache: true }) as ConceptMap;
           if (!conceptMap) {
             this.logger?.debug?.(`Alias ConceptMap '${configuredId}' not found on server`);
-            return { aliases: {}, resourceId: undefined };
+            return { aliases: {}, resourceId: undefined, meta: undefined };
           }
 
           const aliases = conceptMapToAliasObject(conceptMap, this.logger);
           this.logger?.debug?.(
             `Loaded ${Object.keys(aliases).length} alias(es) from server (ConceptMap id: ${conceptMap.id || configuredId})`
           );
-          return { aliases, resourceId: conceptMap.id || configuredId };
+          return {
+            aliases,
+            resourceId: conceptMap.id || configuredId,
+            meta: {
+              versionId: conceptMap.meta?.versionId,
+              lastUpdated: conceptMap.meta?.lastUpdated
+            }
+          };
         } catch (error) {
           this.logger?.error?.(`Failed to load alias ConceptMap '${configuredId}' from server ${serverUrl}:`, error);
-          return { aliases: {}, resourceId: undefined };
+          return { aliases: {}, resourceId: undefined, meta: undefined };
         }
       }
       
@@ -677,7 +865,7 @@ export class AliasProvider {
 
       if (!resources || !Array.isArray(resources) || resources.length === 0) {
         this.logger?.debug?.('No alias ConceptMap found on server');
-        return { aliases: {}, resourceId: undefined };
+        return { aliases: {}, resourceId: undefined, meta: undefined };
       }
       
       // Filter client-side in case server ignores context parameter
@@ -685,12 +873,12 @@ export class AliasProvider {
       
       if (aliasResources.length === 0) {
         this.logger?.debug?.('No alias ConceptMap with correct useContext found on server.');
-        return { aliases: {}, resourceId: undefined };
+        return { aliases: {}, resourceId: undefined, meta: undefined };
       }
       
       if (aliasResources.length > 1) {
         this.logger?.error?.(`Found ${aliasResources.length} alias ConceptMaps - expected exactly 1. Skipping alias loading from server.`);
-        return { aliases: {}, resourceId: undefined };
+        return { aliases: {}, resourceId: undefined, meta: undefined };
       }
       
       const conceptMap = aliasResources[0] as ConceptMap;
@@ -701,7 +889,14 @@ export class AliasProvider {
         `Loaded ${Object.keys(aliases).length} alias(es) from server (ConceptMap id: ${conceptMap.id || 'unknown'})`
       );
 
-      return { aliases, resourceId: conceptMap.id };
+      return {
+        aliases,
+        resourceId: conceptMap.id,
+        meta: {
+          versionId: conceptMap.meta?.versionId,
+          lastUpdated: conceptMap.meta?.lastUpdated
+        }
+      };
       
     } catch (error) {
       /* istanbul ignore next */
@@ -709,7 +904,42 @@ export class AliasProvider {
       /* istanbul ignore next */
       this.logger?.error?.(`Failed to load aliases from server ${serverUrl}:`, error);
       /* istanbul ignore next */
-      return { aliases: {}, resourceId: undefined };
+      return { aliases: {}, resourceId: undefined, meta: undefined };
+    }
+  }
+
+  /**
+   * Conditional read for a specific alias ConceptMap.
+   */
+  async conditionalReadAliases(
+    resourceId: string,
+    condition: { versionId?: string; lastUpdated?: string }
+  ): Promise<{ status: number; aliases?: AliasObject; resourceId?: string; meta?: { versionId?: string; lastUpdated?: string } }> {
+    /* istanbul ignore if */
+    if (!this.fhirClient) {
+      return { status: 0 };
+    }
+
+    try {
+      const response = await this.fhirClient.conditionalRead('ConceptMap', resourceId, condition, { noCache: true });
+      if (response.status === 200 && response.resource) {
+        const conceptMap = response.resource as ConceptMap;
+        const aliases = conceptMapToAliasObject(conceptMap, this.logger);
+        return {
+          status: 200,
+          aliases,
+          resourceId: conceptMap.id || resourceId,
+          meta: {
+            versionId: conceptMap.meta?.versionId,
+            lastUpdated: conceptMap.meta?.lastUpdated
+          }
+        };
+      }
+
+      return { status: response.status };
+    } catch (_error) {
+      /* istanbul ignore next */
+      return { status: 0 };
     }
   }
 

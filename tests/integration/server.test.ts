@@ -112,7 +112,10 @@ describe('Server Integration Tests', () => {
       });
       
       provider = new FumeMappingProvider({
-        fhirClient: client
+        fhirClient: client,
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
       });
     });
 
@@ -205,7 +208,10 @@ describe('Server Integration Tests', () => {
 
       // Initialize provider
       provider = new FumeMappingProvider({
-        fhirClient: client
+        fhirClient: client,
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
       });
 
       await provider.initialize();
