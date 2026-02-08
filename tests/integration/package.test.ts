@@ -19,7 +19,10 @@ describe('Package Integration Tests', () => {
 
   it('should load package mappings from FPE', async () => {
     provider = new FumeMappingProvider({
-      packageExplorer: explorer
+      packageExplorer: explorer,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
 
     const mappings = await provider.getPackageMappings();
@@ -41,7 +44,10 @@ describe('Package Integration Tests', () => {
 
   it('should get package mapping metadata', async () => {
     provider = new FumeMappingProvider({
-      packageExplorer: explorer
+      packageExplorer: explorer,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
 
     const metadata = await provider.getPackageMappingsMetadata();
@@ -56,7 +62,10 @@ describe('Package Integration Tests', () => {
 
   it('should get package mapping by URL identifier', async () => {
     provider = new FumeMappingProvider({
-      packageExplorer: explorer
+      packageExplorer: explorer,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
 
     const mapping = await provider.getPackageMapping('http://test.fume.health/StructureMap/patient-to-bundle');
@@ -68,7 +77,10 @@ describe('Package Integration Tests', () => {
 
   it('should get package mapping by ID identifier', async () => {
     provider = new FumeMappingProvider({
-      packageExplorer: explorer
+      packageExplorer: explorer,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
 
     const mapping = await provider.getPackageMapping('observation-transform');
@@ -80,7 +92,10 @@ describe('Package Integration Tests', () => {
 
   it('should get package mapping by name identifier', async () => {
     provider = new FumeMappingProvider({
-      packageExplorer: explorer
+      packageExplorer: explorer,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
 
     const mapping = await provider.getPackageMapping('PatientToBundle');
@@ -92,7 +107,10 @@ describe('Package Integration Tests', () => {
 
   it('should return null for non-existent identifier', async () => {
     provider = new FumeMappingProvider({
-      packageExplorer: explorer
+      packageExplorer: explorer,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
 
     const mapping = await provider.getPackageMapping('non-existent-mapping');
@@ -102,7 +120,10 @@ describe('Package Integration Tests', () => {
 
   it('should filter by package context', async () => {
     provider = new FumeMappingProvider({
-      packageExplorer: explorer
+      packageExplorer: explorer,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
 
     // Get all mappings from our test package
@@ -116,7 +137,10 @@ describe('Package Integration Tests', () => {
 
   it('should handle package context filtering in getPackageMapping', async () => {
     provider = new FumeMappingProvider({
-      packageExplorer: explorer
+      packageExplorer: explorer,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
 
     // This should find the mapping
@@ -135,7 +159,10 @@ describe('Package Integration Tests', () => {
   it('should work without initialize for package mappings', async () => {
     // Package mappings don't require initialize() since FPE is already initialized
     provider = new FumeMappingProvider({
-      packageExplorer: explorer
+      packageExplorer: explorer,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
 
     // Should work immediately without calling initialize()
@@ -148,7 +175,10 @@ describe('Package Integration Tests', () => {
     
     provider = new FumeMappingProvider({
       packageExplorer: explorer,
-      mappingsFolder: mappingsFolder
+      mappingsFolder: mappingsFolder,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
 
     await provider.initialize();

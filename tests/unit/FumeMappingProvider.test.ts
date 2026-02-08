@@ -4,6 +4,9 @@ import { FumeMappingProvider } from '../../src/FumeMappingProvider';
 import { UserMappingProvider, PackageMappingProvider } from '../../src/providers';
 import { StructureMap, ConceptMap } from '../../src/types';
 import { builtInAliases } from '../../src/builtInAliases';
+import * as path from 'path';
+import * as os from 'os';
+import * as fs from 'fs/promises';
 
 // Mock the providers
 jest.mock('../../src/providers');
@@ -19,7 +22,10 @@ describe('FumeMappingProvider', () => {
       
       new FumeMappingProvider({
         mappingsFolder: '/test/mappings',
-        fhirClient: mockClient
+        fhirClient: mockClient,
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
       });
 
       expect(UserMappingProvider).toHaveBeenCalledWith(
@@ -34,7 +40,10 @@ describe('FumeMappingProvider', () => {
       const mockExplorer = { lookup: jest.fn() } as unknown as FhirPackageExplorer;
       
       new FumeMappingProvider({
-        packageExplorer: mockExplorer
+        packageExplorer: mockExplorer,
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
       });
 
       expect(PackageMappingProvider).toHaveBeenCalledWith(
@@ -46,7 +55,10 @@ describe('FumeMappingProvider', () => {
     it('should pass custom file extension to user provider', () => {
       new FumeMappingProvider({
         mappingsFolder: '/test/mappings',
-        fileExtension: '.txt'
+        fileExtension: '.txt',
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
       });
 
       expect(UserMappingProvider).toHaveBeenCalledWith(
@@ -64,7 +76,10 @@ describe('FumeMappingProvider', () => {
       new FumeMappingProvider({
         packageExplorer: mockExplorer,
         mappingsFolder: '/test/mappings',
-        logger: mockLogger
+        logger: mockLogger,
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
       });
 
       expect(UserMappingProvider).toHaveBeenCalledWith(
@@ -84,26 +99,43 @@ describe('FumeMappingProvider', () => {
     let provider: FumeMappingProvider;
     let mockUserProvider: {
       loadMappings: jest.Mock;
-      refreshMapping: jest.Mock;
+      refreshMapping?: jest.Mock;
+      loadJsonFileMapping: jest.Mock;
+      loadFileMapping: jest.Mock;
+      readJsonFileRaw: jest.Mock;
+      conditionalReadServerMapping: jest.Mock;
+      isValidJsonMappingKey: jest.Mock;
+      isValidFileMappingKeyForPolling: jest.Mock;
+      searchServerMappings?: jest.Mock;
     };
 
     beforeEach(() => {
       mockUserProvider = {
         loadMappings: jest.fn(),
-        refreshMapping: jest.fn()
+        refreshMapping: jest.fn(),
+        loadJsonFileMapping: jest.fn().mockResolvedValue(null),
+        loadFileMapping: jest.fn().mockResolvedValue(null),
+        readJsonFileRaw: jest.fn().mockResolvedValue(null),
+        conditionalReadServerMapping: jest.fn().mockResolvedValue({ status: 404 }),
+        isValidJsonMappingKey: jest.fn().mockReturnValue(true),
+        isValidFileMappingKeyForPolling: jest.fn().mockReturnValue(true),
+        searchServerMappings: jest.fn().mockResolvedValue({ mappings: new Map(), metaByKey: new Map() })
       };
 
-      (UserMappingProvider as jest.Mock).mockImplementation(() => mockUserProvider);
+      (UserMappingProvider as unknown as jest.Mock).mockImplementation(() => mockUserProvider);
 
       provider = new FumeMappingProvider({
-        mappingsFolder: '/test/mappings'
+        mappingsFolder: '/test/mappings',
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
       });
     });
 
     it('should load user mappings on initialize', async () => {
       const mockMappings = new Map([
-        ['map1', { key: 'map1', expression: 'expr1', source: 'file' as const, filename: 'map1.fume' }],
-        ['map2', { key: 'map2', expression: 'expr2', source: 'server' as const, sourceServer: 'http://test.com' }]
+        ['map1', { key: 'map1', expression: 'expr1', sourceType: 'file' as const, source: '/test/mappings/map1.fume' }],
+        ['map2', { key: 'map2', expression: 'expr2', sourceType: 'server' as const, source: 'http://test.com/StructureMap/map2' }]
       ]);
 
       mockUserProvider.loadMappings.mockResolvedValue(mockMappings);
@@ -117,7 +149,7 @@ describe('FumeMappingProvider', () => {
 
     it('should get user mapping by key', async () => {
       const mockMappings = new Map([
-        ['test-key', { key: 'test-key', expression: 'test-expr', source: 'file' as const, filename: 'test.fume' }]
+        ['test-key', { key: 'test-key', expression: 'test-expr', sourceType: 'file' as const, source: '/test/mappings/test.fume' }]
       ]);
 
       mockUserProvider.loadMappings.mockResolvedValue(mockMappings);
@@ -140,12 +172,12 @@ describe('FumeMappingProvider', () => {
 
     it('should reload user mappings', async () => {
       const initialMappings = new Map([
-        ['map1', { key: 'map1', expression: 'expr1', source: 'file' as const, filename: 'map1.fume' }]
+        ['map1', { key: 'map1', expression: 'expr1', sourceType: 'file' as const, source: '/test/mappings/map1.fume' }]
       ]);
 
       const reloadedMappings = new Map([
-        ['map1', { key: 'map1', expression: 'expr1-updated', source: 'file' as const, filename: 'map1.fume' }],
-        ['map2', { key: 'map2', expression: 'expr2', source: 'file' as const, filename: 'map2.fume' }]
+        ['map1', { key: 'map1', expression: 'expr1-updated', sourceType: 'file' as const, source: '/test/mappings/map1.fume' }],
+        ['map2', { key: 'map2', expression: 'expr2', sourceType: 'file' as const, source: '/test/mappings/map2.fume' }]
       ]);
 
       mockUserProvider.loadMappings
@@ -162,15 +194,15 @@ describe('FumeMappingProvider', () => {
 
     it('should refresh specific user mapping', async () => {
       const initialMappings = new Map([
-        ['refresh-test', { key: 'refresh-test', expression: 'old', source: 'file' as const, filename: 'test.fume' }]
+        ['refresh-test', { key: 'refresh-test', expression: 'old', sourceType: 'file' as const, source: '/test/mappings/test.fume' }]
       ]);
 
       mockUserProvider.loadMappings.mockResolvedValue(initialMappings);
-      mockUserProvider.refreshMapping.mockResolvedValue({
+      mockUserProvider.loadFileMapping.mockResolvedValue({
         key: 'refresh-test',
         expression: 'new',
-        source: 'file',
-        filename: 'test.fume'
+        sourceType: 'file',
+        source: '/test/mappings/test.fume'
       });
 
       await provider.initialize();
@@ -182,11 +214,13 @@ describe('FumeMappingProvider', () => {
 
     it('should remove mapping from cache when refresh returns null', async () => {
       const initialMappings = new Map([
-        ['deleted-map', { key: 'deleted-map', expression: 'expr', source: 'file' as const, filename: 'test.fume' }]
+        ['deleted-map', { key: 'deleted-map', expression: 'expr', sourceType: 'file' as const, source: '/test/mappings/test.fume' }]
       ]);
 
       mockUserProvider.loadMappings.mockResolvedValue(initialMappings);
-      mockUserProvider.refreshMapping.mockResolvedValue(null);
+      mockUserProvider.loadFileMapping.mockResolvedValue(null);
+      mockUserProvider.loadJsonFileMapping.mockResolvedValue(null);
+      mockUserProvider.conditionalReadServerMapping.mockResolvedValue({ status: 404 });
 
       await provider.initialize();
       expect(provider.getUserMapping('deleted-map')).toBeDefined();
@@ -195,56 +229,13 @@ describe('FumeMappingProvider', () => {
       expect(provider.getUserMapping('deleted-map')).toBeUndefined();
     });
 
-    it('should update cache directly when mapping provided (optimistic update)', async () => {
-      const initialMappings = new Map([
-        ['optimistic-test', { key: 'optimistic-test', expression: 'old', source: 'server' as const, sourceServer: 'http://test.com' }]
-      ]);
-
-      mockUserProvider.loadMappings.mockResolvedValue(initialMappings);
-
-      await provider.initialize();
-      expect(provider.getUserMapping('optimistic-test')?.expression).toBe('old');
-
-      // Update with provided mapping (no server roundtrip)
-      const updatedMapping = {
-        key: 'optimistic-test',
-        expression: 'new-from-client',
-        source: 'server' as const,
-        sourceServer: 'http://test.com'
-      };
-
-      const result = await provider.refreshUserMapping('optimistic-test', updatedMapping);
-      
-      expect(result).toEqual(updatedMapping);
-      expect(provider.getUserMapping('optimistic-test')?.expression).toBe('new-from-client');
-      expect(mockUserProvider.refreshMapping).not.toHaveBeenCalled();
-    });
-
-    it('should remove mapping when null provided as optimistic update', async () => {
-      const initialMappings = new Map([
-        ['to-delete', { key: 'to-delete', expression: 'expr', source: 'server' as const, sourceServer: 'http://test.com' }]
-      ]);
-
-      mockUserProvider.loadMappings.mockResolvedValue(initialMappings);
-
-      await provider.initialize();
-      expect(provider.getUserMapping('to-delete')).toBeDefined();
-
-      // Delete with null (optimistic deletion)
-      const result = await provider.refreshUserMapping('to-delete', null);
-      
-      expect(result).toBeNull();
-      expect(provider.getUserMapping('to-delete')).toBeUndefined();
-      expect(mockUserProvider.refreshMapping).not.toHaveBeenCalled();
-    });
-
     it('should get user mappings metadata without expressions', async () => {
       const mockMappings = new Map([
         ['map1', { 
           key: 'map1', 
           expression: 'long expression here', 
-          source: 'file' as const, 
-          filename: 'map1.fume',
+          sourceType: 'file' as const, 
+          source: '/test/mappings/map1.fume',
           name: 'Map1',
           url: 'http://test.com/map1'
         }]
@@ -258,8 +249,8 @@ describe('FumeMappingProvider', () => {
       expect(metadata).toHaveLength(1);
       expect(metadata[0]).not.toHaveProperty('expression');
       expect(metadata[0]).toHaveProperty('key');
+      expect(metadata[0]).toHaveProperty('sourceType');
       expect(metadata[0]).toHaveProperty('source');
-      expect(metadata[0]).toHaveProperty('filename');
       expect(metadata[0]).toHaveProperty('name');
       expect(metadata[0]).toHaveProperty('url');
     });
@@ -282,7 +273,10 @@ describe('FumeMappingProvider', () => {
 
       const mockExplorer = { lookup: jest.fn() } as unknown as FhirPackageExplorer;
       provider = new FumeMappingProvider({
-        packageExplorer: mockExplorer
+        packageExplorer: mockExplorer,
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
       });
     });
 
@@ -394,7 +388,10 @@ describe('FumeMappingProvider', () => {
 
     it('should return empty array when no package provider', async () => {
       const providerWithoutPackages = new FumeMappingProvider({
-        mappingsFolder: '/test/mappings'
+        mappingsFolder: '/test/mappings',
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
       });
 
       const mappings = await providerWithoutPackages.getPackageMappings();
@@ -423,7 +420,10 @@ describe('FumeMappingProvider', () => {
       providersModule.AliasProvider = jest.fn().mockImplementation(() => mockAliasProvider);
 
       provider = new FumeMappingProvider({
-        fhirClient: mockClient
+        fhirClient: mockClient,
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
       });
     });
 
@@ -431,7 +431,27 @@ describe('FumeMappingProvider', () => {
       const providersModule = require('../../src/providers');
       expect(providersModule.AliasProvider).toHaveBeenCalledWith(
         mockClient,
+        undefined,
         undefined
+      );
+    });
+
+    it('should pass configured alias ConceptMap id to AliasProvider', async () => {
+      const providersModule = require('../../src/providers');
+
+      const providerWithAliasId = new FumeMappingProvider({
+        fhirClient: mockClient,
+        aliasConceptMapId: 'alias-cm-99',
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
+      });
+
+      expect(providerWithAliasId).toBeDefined();
+      expect(providersModule.AliasProvider).toHaveBeenLastCalledWith(
+        mockClient,
+        undefined,
+        'alias-cm-99'
       );
     });
 
@@ -472,49 +492,6 @@ describe('FumeMappingProvider', () => {
       });
     });
 
-    it('should register a new alias optimistically', async () => {
-      mockAliasProvider.loadAliasesWithMetadata?.mockResolvedValue({ aliases: {}, resourceId: undefined });
-      await provider.initialize();
-
-      provider.registerAlias('newKey', 'newValue');
-
-      const aliases = provider.getAliases();
-      expect(aliases.newKey).toBe('newValue');
-    });
-
-    it('should update an existing alias optimistically', async () => {
-      const mockAliases = { key1: 'value1' };
-      mockAliasProvider.loadAliasesWithMetadata?.mockResolvedValue({ aliases: mockAliases, resourceId: 'alias-cm-3' });
-      await provider.initialize();
-
-      provider.registerAlias('key1', 'updatedValue');
-
-      const aliases = provider.getAliases();
-      expect(aliases.key1).toBe('updatedValue');
-    });
-
-    it('should allow user alias to override a built-in alias', async () => {
-      mockAliasProvider.loadAliasesWithMetadata?.mockResolvedValue({ aliases: {}, resourceId: undefined });
-      await provider.initialize();
-
-      expect(provider.getAliases().ucum).toBe('http://unitsofmeasure.org');
-
-      provider.registerAlias('ucum', 'http://example.com/custom-ucum');
-      expect(provider.getAliases().ucum).toBe('http://example.com/custom-ucum');
-    });
-
-    it('should delete an alias from cache', async () => {
-      const mockAliases = { key1: 'value1', key2: 'value2' };
-      mockAliasProvider.loadAliasesWithMetadata?.mockResolvedValue({ aliases: mockAliases, resourceId: 'alias-cm-4' });
-      await provider.initialize();
-
-      provider.deleteAlias('key1');
-
-      const aliases = provider.getAliases();
-      expect(aliases).not.toHaveProperty('key1');
-      expect(aliases.key2).toBe('value2');
-    });
-
     it('should return copy of aliases object', async () => {
       const mockAliases = { key1: 'value1' };
       mockAliasProvider.loadAliasesWithMetadata?.mockResolvedValue({ aliases: mockAliases, resourceId: 'alias-cm-5' });
@@ -531,6 +508,198 @@ describe('FumeMappingProvider', () => {
       aliases1.key1 = 'modified';
       const aliases3 = provider.getAliases();
       expect(aliases3.key1).toBe('value1');
+    });
+
+    it('should expose alias metadata via getAliasesWithMetadata', async () => {
+      const mockAliases = { key1: 'value1' };
+      mockAliasProvider.loadAliasesWithMetadata?.mockResolvedValue({ aliases: mockAliases, resourceId: 'alias-cm-5' });
+      await provider.initialize();
+
+      const withMeta = provider.getAliasesWithMetadata();
+      expect(withMeta.key1).toEqual({
+        value: 'value1',
+        sourceType: 'server',
+        source: 'http://test.com/ConceptMap/alias-cm-5'
+      });
+
+      // built-ins are included with builtIn metadata
+      expect(withMeta.ucum.sourceType).toBe('builtIn');
+      expect(withMeta.ucum.value).toBe(builtInAliases.ucum);
+    });
+  });
+
+  describe('File Aliases (aliases.json)', () => {
+    const createTempFolder = async () => {
+      const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'fume-mappings-'));
+      return dir;
+    };
+
+    const writeAliasesJson = async (folder: string, content: unknown) => {
+      const filePath = path.join(folder, 'aliases.json');
+      await fs.writeFile(filePath, JSON.stringify(content, null, 2), 'utf-8');
+      return filePath;
+    };
+
+    beforeEach(() => {
+      // Ensure user provider is harmless for these tests
+      (UserMappingProvider as unknown as jest.Mock).mockImplementation(() => ({
+        loadMappings: jest.fn().mockResolvedValue(new Map()),
+        refreshMapping: jest.fn(),
+        loadJsonFileMapping: jest.fn().mockResolvedValue(null),
+        loadFileMapping: jest.fn().mockResolvedValue(null),
+        readJsonFileRaw: jest.fn().mockResolvedValue(null),
+        conditionalReadServerMapping: jest.fn().mockResolvedValue({ status: 404 }),
+        isValidJsonMappingKey: jest.fn().mockReturnValue(true),
+        isValidFileMappingKeyForPolling: jest.fn().mockReturnValue(true),
+        searchServerMappings: jest.fn().mockResolvedValue({ mappings: new Map(), metaByKey: new Map() })
+      }));
+    });
+
+    it('should not load file aliases when no mappingsFolder configured', async () => {
+      const provider = new FumeMappingProvider({
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
+      });
+      await provider.initialize();
+      expect(provider.getAliases()).toEqual(builtInAliases);
+    });
+
+    it('should not load file aliases when aliases.json is missing', async () => {
+      const folder = await createTempFolder();
+      const provider = new FumeMappingProvider({
+        mappingsFolder: folder,
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
+      });
+      await provider.initialize();
+
+      expect(provider.getAliases()).toEqual(builtInAliases);
+    });
+
+    it('should load valid aliases.json and expose metadata source as absolute path', async () => {
+      const folder = await createTempFolder();
+      await writeAliasesJson(folder, { myAlias: 'myValue', other_alias: 'x', _private: 'y', '1b': 'z', '1_c': 'w' });
+
+      const provider = new FumeMappingProvider({
+        mappingsFolder: folder,
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
+      });
+      await provider.initialize();
+
+      const aliases = provider.getAliases();
+      expect(aliases.myAlias).toBe('myValue');
+      expect(aliases._private).toBe('y');
+      expect(aliases['1b']).toBe('z');
+      expect(aliases['1_c']).toBe('w');
+
+      const meta = provider.getAliasesWithMetadata();
+      expect(meta.myAlias.sourceType).toBe('file');
+      expect(meta.myAlias.source).toBe(path.resolve(folder, 'aliases.json'));
+    });
+
+    it('should warn+ignore invalid entries in aliases.json (not fatal)', async () => {
+      const folder = await createTempFolder();
+      await writeAliasesJson(folder, { 'bad-key': 'x', okKey: 123, goodKey: 'ok' });
+
+      const mockLogger = { info: jest.fn(), debug: jest.fn(), warn: jest.fn(), error: jest.fn() };
+      const provider = new FumeMappingProvider({
+        mappingsFolder: folder,
+        logger: mockLogger,
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
+      });
+      await expect(provider.initialize()).resolves.toBeUndefined();
+
+      const aliases = provider.getAliases();
+      expect(aliases.goodKey).toBe('ok');
+      expect(aliases).not.toHaveProperty('bad-key');
+      expect(aliases).not.toHaveProperty('okKey');
+      expect(mockLogger.warn).toHaveBeenCalled();
+    });
+
+    it('should warn+ignore malformed JSON in aliases.json (not fatal)', async () => {
+      const folder = await createTempFolder();
+      const filePath = path.join(folder, 'aliases.json');
+      await fs.writeFile(filePath, '{ this is not json', 'utf-8');
+
+      const mockLogger = { info: jest.fn(), debug: jest.fn(), warn: jest.fn(), error: jest.fn() };
+      const provider = new FumeMappingProvider({
+        mappingsFolder: folder,
+        logger: mockLogger,
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
+      });
+      await expect(provider.initialize()).resolves.toBeUndefined();
+      expect(provider.getAliases()).toEqual(builtInAliases);
+      expect(mockLogger.warn).toHaveBeenCalled();
+    });
+
+    it('should merge server + file + built-in with file overriding server, and fall back on full refresh', async () => {
+      const folder = await createTempFolder();
+      await writeAliasesJson(folder, { loinc: 'file-loinc', onlyFile: 'file-only' });
+
+      const mockLogger = { info: jest.fn(), debug: jest.fn(), warn: jest.fn(), error: jest.fn() };
+      const mockClient = new FhirClient({ baseUrl: 'http://test.com', fhirVersion: 'R4' });
+
+      const mockAliasProvider = {
+        loadAliasesWithMetadata: jest.fn().mockResolvedValue({
+          aliases: { loinc: 'server-loinc', onlyServer: 'server-only' },
+          resourceId: 'alias-cm-1'
+        })
+      };
+
+      // Mock AliasProvider
+      const providersModule = require('../../src/providers');
+      providersModule.AliasProvider = jest.fn().mockImplementation(() => mockAliasProvider);
+
+      const provider = new FumeMappingProvider({
+        mappingsFolder: folder,
+        fhirClient: mockClient,
+        logger: mockLogger,
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
+      });
+
+      await provider.initialize();
+
+      // Collision resolution: file wins over server
+      expect(provider.getAliases().loinc).toBe('file-loinc');
+      expect(provider.getAliasesWithMetadata().loinc.sourceType).toBe('file');
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("File alias 'loinc' overrides server alias")
+      );
+
+      // Remove aliases.json and reload -> should reveal server alias
+      await fs.unlink(path.join(folder, 'aliases.json'));
+      await provider.reloadAliases();
+      expect(provider.getAliases().loinc).toBe('server-loinc');
+      expect(provider.getAliasesWithMetadata().loinc).toEqual({
+        value: 'server-loinc',
+        sourceType: 'server',
+        source: 'http://test.com/ConceptMap/alias-cm-1'
+      });
+
+      // Remove server aliases and reload -> should reveal built-in alias
+      mockAliasProvider.loadAliasesWithMetadata.mockResolvedValueOnce({ aliases: {}, resourceId: undefined });
+      await provider.reloadAliases();
+      expect(provider.getAliases().loinc).toBe(builtInAliases.loinc);
+      expect(provider.getAliasesWithMetadata().loinc.sourceType).toBe('builtIn');
+    });
+
+    it('should forbid .json as mapping fileExtension', () => {
+      expect(() => new FumeMappingProvider({ mappingsFolder: '/x', fileExtension: '.json', filePollingIntervalMs: 0, serverPollingIntervalMs: 0, forcedResyncIntervalMs: 0 })).toThrow(
+        /fileExtension.*\.json.*reserved/i
+      );
+      expect(() => new FumeMappingProvider({ mappingsFolder: '/x', fileExtension: 'json', filePollingIntervalMs: 0, serverPollingIntervalMs: 0, forcedResyncIntervalMs: 0 })).toThrow(
+        /fileExtension.*\.json.*reserved/i
+      );
     });
   });
 

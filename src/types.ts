@@ -21,14 +21,15 @@ export interface UserMappingMetadata {
   /** Unique key (ID) for the mapping */
   key: string;
   
-  /** Source: 'file' or 'server' */
-  source: 'file' | 'server';
+  /** Source type: 'file' or 'server' */
+  sourceType: 'file' | 'server';
   
-  /** Filename (for file sources) */
-  filename?: string;
-  
-  /** Source FHIR server URL (for server sources) */
-  sourceServer?: string;
+  /**
+   * String pointing to the exact source location.
+   * - server: full URL of the StructureMap resource
+   * - file: absolute path to the mapping file
+   */
+  source: string;
   
   /** StructureMap resource name (if applicable) */
   name?: string;
@@ -41,8 +42,12 @@ export interface UserMappingMetadata {
  * A complete user mapping with expression and metadata
  */
 export interface UserMapping extends UserMappingMetadata {
-  /** The FUME expression */
-  expression: string;
+  /**
+   * Mapping value.
+   * - For text-based mappings (e.g. .fume): string
+   * - For JSON mappings (*.json): parsed JSON value (can be string/object/array/number/boolean/null)
+   */
+  expression: unknown;
 }
 
 /**
@@ -83,6 +88,10 @@ export interface PackageMapping extends PackageMappingMetadata {
 export interface StructureMap extends EnrichedResource {
   resourceType: 'StructureMap';
   id: string;
+  meta?: {
+    versionId?: string;
+    lastUpdated?: string;
+  };
   url?: string;
   identifier?: Array<{
     use?: string;
@@ -153,8 +162,20 @@ export interface FumeMappingProviderConfig {
   /** Optional logger instance for structured logging */
   logger?: Logger;
   
+  /** Optional ConceptMap resource id to use for aliases (skips search) */
+  aliasConceptMapId?: string;
+  
   /** Canonical base URL for generated FHIR resources (default: 'http://example.com') */
   canonicalBaseUrl?: string;
+
+  /** Polling interval for mapping/alias file changes (ms). Default: 5000. Set <=0 to disable. */
+  filePollingIntervalMs?: number;
+
+  /** Polling interval for FHIR server resources (ms). Default: 30000. Set <=0 to disable. */
+  serverPollingIntervalMs?: number;
+
+  /** Forced resync interval for full cache reload (ms). Default: 3600000. Set <=0 to disable. */
+  forcedResyncIntervalMs?: number;
 }
 
 /**
@@ -173,11 +194,45 @@ export interface AliasObject {
 }
 
 /**
+ * Alias source type.
+ * - 'file'   : Loaded from aliases.json in mappingsFolder
+ * - 'server' : Loaded from ConceptMap on FHIR server
+ * - 'builtIn': Bundled defaults
+ */
+export type AliasSourceType = 'file' | 'server' | 'builtIn';
+
+/**
+ * Alias entry with metadata.
+ */
+export interface AliasWithMetadata {
+  value: string;
+  sourceType: AliasSourceType;
+  /**
+   * String pointing to the source.
+   * - server: `${baseUrl}/ConceptMap/${id}`
+   * - file: absolute path to aliases.json
+   * - builtIn: descriptive identifier
+   */
+  source: string;
+}
+
+/**
+ * Alias object with per-alias metadata.
+ */
+export interface AliasObjectWithMetadata {
+  [key: string]: AliasWithMetadata;
+}
+
+/**
  * FHIR ConceptMap resource (simplified)
  */
 export interface ConceptMap extends Resource {
   resourceType: 'ConceptMap';
   id?: string;
+  meta?: {
+    versionId?: string;
+    lastUpdated?: string;
+  };
   url?: string;
   name?: string;
   status?: string;

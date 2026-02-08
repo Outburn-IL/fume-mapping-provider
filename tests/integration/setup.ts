@@ -22,9 +22,9 @@ export default async function globalSetup() {
     console.log('Starting HAPI FHIR server...');
     
     // Start the containers (will use existing if already created)
-    execSync(`docker-compose -f "${composeFile}" up -d`, { 
+    execSync(`docker compose -f "${composeFile}" up -d`, {
       stdio: 'inherit',
-      cwd: __dirname 
+      cwd: __dirname
     });
 
     // Wait for server to be ready by polling the metadata endpoint

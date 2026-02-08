@@ -9,6 +9,7 @@ A TypeScript module for managing pre-defined, named FUME expressions (mappings) 
 - 🌐 **Server mappings**: Load from FHIR servers with automatic pagination
 - 📦 **Package mappings**: Load from FHIR packages via `fhir-package-explorer`
 - 🔄 **Smart collision handling**: File mappings override server mappings
+- 🛰️ **Automatic change tracking**: Poll files and FHIR server resources with incremental updates
 - 🔍 **Flexible search**: Find package mappings by URL, ID, or name
 - 📝 **Structured logging**: Optional logger interface support
 - ✅ **FUME validation**: Filters StructureMaps by FUME-specific extensions
@@ -21,7 +22,7 @@ The provider separates mappings into two categories:
 - **Fast access**: Loaded once, cached in memory
 - **Key-based lookup**: Use unique keys for instant retrieval
 - **Collision resolution**: File mappings override server mappings with warnings
-- **Refresh by key**: Update individual mappings without full reload
+- **Focused refresh by key**: Re-fetch a single mapping from its real source
 
 ### Package Mappings
 - **Always fresh**: Queried from FPE on demand (FPE handles caching)
@@ -58,7 +59,11 @@ const provider = new FumeMappingProvider({
   fileExtension: '.fume', // Optional, default is '.fume'
   fhirClient: fhirClient,
   packageExplorer: packageExplorer,
+  aliasConceptMapId: 'my-aliases-cm-id', // Optional, skips alias ConceptMap search
   canonicalBaseUrl: 'http://example.com', // Optional, default is 'http://example.com'
+  filePollingIntervalMs: 5000,   // Optional, default 5000 (set <= 0 to disable)
+  serverPollingIntervalMs: 30000, // Optional, default 30000 (set <= 0 to disable)
+  forcedResyncIntervalMs: 3600000, // Optional, default 1 hour (set <= 0 to disable)
   logger: console // Optional
 });
 
@@ -79,20 +84,16 @@ await provider.reloadUserMappings();
 
 // Refresh specific mapping by key (fetches from source)
 await provider.refreshUserMapping('my-mapping-key');
-
-// Optimistic update - provide mapping directly to avoid roundtrip
-// Useful after successfully updating the FHIR server
-const updatedMapping = {
-  key: 'my-mapping-key',
-  expression: '$output = { updated: true }',
-  source: 'server',
-  sourceServer: 'http://my-server.com'
-};
-await provider.refreshUserMapping('my-mapping-key', updatedMapping);
-
-// Optimistic delete - pass null to remove from cache
-await provider.refreshUserMapping('deleted-key', null);
 ```
+
+### JSON Mapping Files (*.json)
+
+If `mappingsFolder` is configured, the provider also loads `*.json` files from that folder as **JSON-valued mappings**.
+
+- The mapping key is the filename without `.json`
+- The mapping value is the parsed JSON value (object/array/string/number/boolean/null)
+- The reserved filename `aliases.json` is **never** treated as a mapping
+- If both `myMap.json` and `myMap.fume` exist, the JSON mapping overrides the text mapping (a warning is logged if a logger is provided)
 
 ### Get User Mappings (Lightning Fast ⚡)
 
@@ -114,15 +115,26 @@ const mapping = provider.getUserMapping('my-key');
 // Returns: UserMapping | undefined
 ```
 
+## Automatic Change Tracking
+
+On `initialize()`, the provider automatically starts polling sources to keep the in-memory cache aligned with files and server resources.
+
+- **File polling** (default: 5s): detects changes in mapping files and `aliases.json` incrementally.
+- **Server polling** (default: 30s):
+  - Aliases: conditional read of the alias ConceptMap (ETag/Last-Modified).
+  - Mappings: StructureMap search with `_lastUpdated`.
+- **Forced resync** (default: 1h): full refresh of aliases + mappings, applied incrementally.
+
+Disable any polling loop by setting its interval to `<= 0`.
+
 ### UserMapping Structure
 
 ```typescript
 interface UserMapping {
   key: string;                    // Unique identifier
-  expression: string;             // FUME expression
-  source: 'file' | 'server';     // Origin
-  filename?: string;              // For file mappings
-  sourceServer?: string;          // For server mappings
+  expression: unknown;            // FUME expression (string) or JSON value for *.json
+  sourceType: 'file' | 'server';  // Origin
+  source: string;                 // Absolute file path or full server URL
   name?: string;                  // StructureMap.name
   url?: string;                   // StructureMap.url
 }
@@ -150,9 +162,13 @@ const metadata = await provider.getPackageMappingsMetadata();
 ### Overview
 
 Aliases are simple key-value string mappings stored in a special ConceptMap resource on the FHIR server. Unlike mappings, aliases are:
-- **Server-only**: Not loaded from files or packages
+- **Server + File**: Loaded from the FHIR server and/or an optional `aliases.json` file in `mappingsFolder`
 - **Consolidated**: Always served as a single object
-- **Cached**: Loaded once during initialization for fast access
+- **Cached**: Kept fresh via automatic change tracking
+
+When both server and file sources are configured:
+- **File aliases override server aliases** on key collision (a warning is logged if a logger is provided)
+- **Server aliases override built-in aliases**
 
 ### Alias Resource Structure
 
@@ -182,6 +198,10 @@ The server is queried with: `GET [baseUrl]/ConceptMap?context=http://codes.fume.
 const aliases = provider.getAliases();
 // Returns: { [key: string]: string }
 
+// Get all aliases with per-alias metadata (source + sourceType)
+const aliasesWithMeta = provider.getAliasesWithMetadata();
+// Returns: { [key: string]: { value: string; sourceType: 'file'|'server'|'builtIn'; source: string } }
+
 // Get the ConceptMap id used for server aliases (if loaded)
 // Downstream consumers can use this id when updating the alias ConceptMap
 const aliasResourceId = provider.getAliasResourceId();
@@ -195,21 +215,35 @@ const aliasResourceId = provider.getAliasResourceId();
 // }
 ```
 
+### File Aliases (`aliases.json`)
+
+If `mappingsFolder` is configured, the provider will look for a special `aliases.json` file inside it.
+
+Rules:
+- If `mappingsFolder` is not set, file aliases are not supported.
+- If `aliases.json` is missing, no file aliases are loaded.
+- If `aliases.json` exists but is invalid, a warning is logged and the file is ignored.
+
+Example `aliases.json`:
+
+```json
+{
+  "patientSystemUrl": "http://example.com/patients",
+  "defaultLanguage": "en-US",
+  "apiVersion": "v1"
+}
+```
+
+Validation:
+- Must be a JSON object
+- Keys must match `^[A-Za-z0-9_]+$` (no whitespace or operators like `-` or `.`)
+- Values must be strings
+
 ### Reload Aliases
 
 ```typescript
-// Reload from server (updates cache)
+// Reload from configured sources (server and/or mappingsFolder)
 await provider.reloadAliases();
-```
-
-### Optimistic Updates
-
-```typescript
-// Register or update a single alias (no server roundtrip)
-provider.registerAlias('newKey', 'newValue');
-
-// Delete an alias from cache
-provider.deleteAlias('oldKey');
 ```
 
 ### Transforming Alias Resources
@@ -270,7 +304,7 @@ When a file mapping has the same key as a server mapping:
 
 // After initialize():
 const mapping = provider.getUserMapping('my-mapping');
-// mapping.source === 'file'
+// mapping.sourceType === 'file'
 // mapping.expression === 'InstanceOf: Patient'
 // Warning logged: "File mapping 'my-mapping' overrides server mapping"
 ```
@@ -290,7 +324,7 @@ const keys = provider.getUserMappingKeys();
 // ['mapping1', 'mapping2', 'mapping3']
 
 const mapping = provider.getUserMapping('mapping1');
-// { key: 'mapping1', expression: '...', source: 'file' }
+// { key: 'mapping1', expression: '...', sourceType: 'file', source: '/abs/path/mapping1.fume' }
 ```
 
 ### Server-Only Setup
@@ -354,9 +388,11 @@ new FumeMappingProvider(config: FumeMappingProviderConfig)
 #### Methods
 
 **Initialization:**
-- `initialize(): Promise<void>` - Load user mappings into cache
+- `initialize(): Promise<void>` - Load caches and start automatic change tracking
 - `reloadUserMappings(): Promise<void>` - Reload all user mappings
 - `refreshUserMapping(key: string): Promise<UserMapping | null>` - Refresh specific user mapping
+- `startAutomaticChangeTracking(): void` - Start polling + forced resync
+- `stopAutomaticChangeTracking(): void` - Stop polling + forced resync
 
 **User Mappings (Cached, Fast):**
 - `getUserMappings(): UserMapping[]` - Get all user mappings
@@ -371,9 +407,8 @@ new FumeMappingProvider(config: FumeMappingProviderConfig)
 
 **Aliases (Cached, Fast):**
 - `reloadAliases(): Promise<void>` - Reload all aliases from server
-- `registerAlias(name: string, value: string): void` - Register/update a single alias (optimistic cache update)
-- `deleteAlias(name: string): void` - Delete a specific alias from cache
 - `getAliases(): AliasObject` - Get all cached aliases as single object
+- `getAliasesWithMetadata(): AliasObjectWithMetadata` - Get all cached aliases with metadata
 - `getAliasResourceId(): string | undefined` - Get ConceptMap id for server aliases (if loaded)
 
 **Converters:**
@@ -388,11 +423,15 @@ new FumeMappingProvider(config: FumeMappingProviderConfig)
 ```typescript
 interface FumeMappingProviderConfig {
   mappingsFolder?: string;           // Path to .fume files
-  fileExtension?: string;            // Default: '.fume'
+  fileExtension?: string;            // Default: '.fume' ('.json' is reserved for aliases.json)
   fhirClient?: any;                  // FHIR client instance
   packageExplorer?: any;             // FPE instance
   logger?: Logger;                   // Optional logger
+  aliasConceptMapId?: string;        // Optional ConceptMap id for aliases (skips search)
   canonicalBaseUrl?: string;         // Default: 'http://example.com'
+  filePollingIntervalMs?: number;    // Default: 5000 (set <= 0 to disable)
+  serverPollingIntervalMs?: number;  // Default: 30000 (set <= 0 to disable)
+  forcedResyncIntervalMs?: number;   // Default: 3600000 (set <= 0 to disable)
 }
 ```
 

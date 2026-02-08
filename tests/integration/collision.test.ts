@@ -59,19 +59,22 @@ describe('File/Server Collision Tests', () => {
     });
     
     provider = new FumeMappingProvider({
-      mappingsFolder: MAPPINGS_FOLDER
+      mappingsFolder: MAPPINGS_FOLDER,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
 
     await provider.initialize();
 
     const mappings = provider.getUserMappings();
     expect(mappings.length).toBe(3);
-    expect(mappings.every(m => m.source === 'file')).toBe(true);
+    expect(mappings.every(m => m.sourceType === 'file')).toBe(true);
     
     const keys = provider.getUserMappingKeys();
-    expect(keys).toContain('file-mapping-1');
-    expect(keys).toContain('file-mapping-2');
-    expect(keys).toContain('server-mapping-collision');
+    expect(keys).toContain('fileMapping1');
+    expect(keys).toContain('fileMapping2');
+    expect(keys).toContain('serverMappingCollision');
   });
 
   it('should override server mapping with file mapping on key collision', async () => {
@@ -84,7 +87,7 @@ describe('File/Server Collision Tests', () => {
     // Create a server mapping with same ID as file mapping
     const structureMap = {
       resourceType: 'StructureMap',
-      id: 'server-mapping-collision',
+      id: 'serverMappingCollision',
       url: 'http://test.example.com/StructureMap/collision',
       name: 'ServerMappingCollision',
       status: 'active',
@@ -132,7 +135,7 @@ describe('File/Server Collision Tests', () => {
     };
 
     await client.update(structureMap);
-    createdResourceIds.push('server-mapping-collision');
+  createdResourceIds.push('serverMappingCollision');
 
     // Create provider with both file and server
     const mockLogger = {
@@ -145,20 +148,23 @@ describe('File/Server Collision Tests', () => {
     provider = new FumeMappingProvider({
       mappingsFolder: MAPPINGS_FOLDER,
       fhirClient: client,
-      logger: mockLogger
+      logger: mockLogger,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
 
     await provider.initialize();
 
     // Verify collision warning was logged
     expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("File mapping 'server-mapping-collision' overrides server mapping")
+      expect.stringContaining("File mapping 'serverMappingCollision' overrides server mapping")
     );
 
     // Verify file mapping takes precedence
-    const mapping = provider.getUserMapping('server-mapping-collision');
+    const mapping = provider.getUserMapping('serverMappingCollision');
     expect(mapping).toBeDefined();
-    expect(mapping!.source).toBe('file');
+    expect(mapping!.sourceType).toBe('file');
     expect(mapping!.expression).toContain('* type = \'batch\'');
     expect(mapping!.expression).not.toContain('source: "server"');
   });
@@ -173,7 +179,7 @@ describe('File/Server Collision Tests', () => {
     // Setup: server + file with collision
     const structureMap = {
       resourceType: 'StructureMap',
-      id: 'refresh-collision-test',
+      id: 'refreshCollisionTest',
       url: 'http://test.example.com/StructureMap/refresh-collision',
       name: 'RefreshCollisionTest',
       status: 'active',
@@ -221,42 +227,45 @@ describe('File/Server Collision Tests', () => {
     };
 
     await client.update(structureMap);
-    createdResourceIds.push('refresh-collision-test');
+  createdResourceIds.push('refreshCollisionTest');
 
     // Create file mapping with same key
     const fs = await import('fs/promises');
-    const testFilePath = path.join(MAPPINGS_FOLDER, 'refresh-collision-test.fume');
+    const testFilePath = path.join(MAPPINGS_FOLDER, 'refreshCollisionTest.fume');
     await fs.writeFile(testFilePath, '$output := { "source": "file" }');
 
     try {
       provider = new FumeMappingProvider({
         mappingsFolder: MAPPINGS_FOLDER,
-        fhirClient: client
+        fhirClient: client,
+        filePollingIntervalMs: 0,
+        serverPollingIntervalMs: 0,
+        forcedResyncIntervalMs: 0
       });
 
       await provider.initialize();
 
       // Should have file version
-      let mapping = provider.getUserMapping('refresh-collision-test');
-      expect(mapping?.source).toBe('file');
+      let mapping = provider.getUserMapping('refreshCollisionTest');
+      expect(mapping?.sourceType).toBe('file');
       expect(mapping?.expression).toContain('"source": "file"');
 
       // Update file
       await fs.writeFile(testFilePath, '$output := { "source": "file", "updated": true }');
 
       // Refresh - should still get file version
-      await provider.refreshUserMapping('refresh-collision-test');
-      mapping = provider.getUserMapping('refresh-collision-test');
-      expect(mapping?.source).toBe('file');
+      await provider.refreshUserMapping('refreshCollisionTest');
+      mapping = provider.getUserMapping('refreshCollisionTest');
+      expect(mapping?.sourceType).toBe('file');
       expect(mapping?.expression).toContain('"updated": true');
 
       // Delete file
       await fs.unlink(testFilePath);
 
       // Refresh - should now fall back to server version
-      await provider.refreshUserMapping('refresh-collision-test');
-      mapping = provider.getUserMapping('refresh-collision-test');
-      expect(mapping?.source).toBe('server');
+      await provider.refreshUserMapping('refreshCollisionTest');
+      mapping = provider.getUserMapping('refreshCollisionTest');
+      expect(mapping?.sourceType).toBe('server');
       expect(mapping?.expression).toContain('"source": "server"');
     } finally {
       // Cleanup test file if it exists
@@ -278,8 +287,8 @@ describe('File/Server Collision Tests', () => {
     // Create server mappings
     const serverMap1 = {
       resourceType: 'StructureMap',
-      id: 'mixed-server-1',
-      url: 'http://test.example.com/StructureMap/mixed-server-1',
+      id: 'mixedServer1',
+      url: 'http://test.example.com/StructureMap/mixedServer1',
       name: 'MixedServer1',
       status: 'active',
       useContext: [
@@ -326,11 +335,14 @@ describe('File/Server Collision Tests', () => {
     };
 
     await client.update(serverMap1);
-    createdResourceIds.push('mixed-server-1');
+  createdResourceIds.push('mixedServer1');
 
     provider = new FumeMappingProvider({
       mappingsFolder: MAPPINGS_FOLDER,
-      fhirClient: client
+      fhirClient: client,
+      filePollingIntervalMs: 0,
+      serverPollingIntervalMs: 0,
+      forcedResyncIntervalMs: 0
     });
 
     await provider.initialize();
@@ -338,23 +350,21 @@ describe('File/Server Collision Tests', () => {
     const metadata = provider.getUserMappingsMetadata();
     
     // Should have both file and server mappings
-    const fileMappings = metadata.filter(m => m.source === 'file');
-    const serverMappings = metadata.filter(m => m.source === 'server');
+    const fileMappings = metadata.filter(m => m.sourceType === 'file');
+    const serverMappings = metadata.filter(m => m.sourceType === 'server');
     
     expect(fileMappings.length).toBeGreaterThan(0);
     expect(serverMappings.length).toBeGreaterThan(0);
 
     // Verify file mapping metadata
-    const fileMapping = fileMappings.find(m => m.key === 'file-mapping-1');
+    const fileMapping = fileMappings.find(m => m.key === 'fileMapping1');
     expect(fileMapping).toBeDefined();
-    expect(fileMapping!.filename).toBe('file-mapping-1.fume');
-    expect(fileMapping!.sourceServer).toBeUndefined();
+    expect(fileMapping!.source).toBe(path.resolve(MAPPINGS_FOLDER, 'fileMapping1.fume'));
 
     // Verify server mapping metadata
-    const serverMapping = serverMappings.find(m => m.key === 'mixed-server-1');
+    const serverMapping = serverMappings.find(m => m.key === 'mixedServer1');
     expect(serverMapping).toBeDefined();
-    expect(serverMapping!.url).toBe('http://test.example.com/StructureMap/mixed-server-1');
-    expect(serverMapping!.sourceServer).toBe(HAPI_BASE_URL);
-    expect(serverMapping!.filename).toBeUndefined();
+    expect(serverMapping!.url).toBe('http://test.example.com/StructureMap/mixedServer1');
+    expect(serverMapping!.source).toBe(`${HAPI_BASE_URL}/StructureMap/mixedServer1`);
   });
 });
