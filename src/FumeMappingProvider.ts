@@ -399,20 +399,6 @@ export class FumeMappingProvider {
     this.aliasesCacheWithMetadata = this.buildAliasesCache(true);
   }
 
-  private areAliasObjectsEqual(a: AliasObject, b: AliasObject): boolean {
-    const aKeys = Object.keys(a);
-    const bKeys = Object.keys(b);
-    if (aKeys.length !== bKeys.length) {
-      return false;
-    }
-    for (const key of aKeys) {
-      if (a[key] !== b[key]) {
-        return false;
-      }
-    }
-    return true;
-  }
-
   private areAliasCachesEqual(
     a: Map<string, AliasWithMetadata>,
     b: Map<string, AliasWithMetadata>
