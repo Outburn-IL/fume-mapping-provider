@@ -391,14 +391,8 @@ export class FumeMappingProvider {
   }
 
   private rebuildAliasesCacheIfChanged(): void {
-    const before = this.getAliases();
     const nextCache = this.buildAliasesCache(false);
-    const after: AliasObject = {};
-    for (const [key, entry] of nextCache.entries()) {
-      after[key] = entry.value;
-    }
-
-    if (this.areAliasObjectsEqual(before, after)) {
+    if (this.areAliasCachesEqual(this.aliasesCacheWithMetadata, nextCache)) {
       return;
     }
 
@@ -413,6 +407,31 @@ export class FumeMappingProvider {
     }
     for (const key of aKeys) {
       if (a[key] !== b[key]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private areAliasCachesEqual(
+    a: Map<string, AliasWithMetadata>,
+    b: Map<string, AliasWithMetadata>
+  ): boolean {
+    if (a.size !== b.size) {
+      return false;
+    }
+    for (const [key, entry] of a.entries()) {
+      const other = b.get(key);
+      if (!other) {
+        return false;
+      }
+      if (entry.value !== other.value) {
+        return false;
+      }
+      if (entry.sourceType !== other.sourceType) {
+        return false;
+      }
+      if (entry.source !== other.source) {
         return false;
       }
     }
