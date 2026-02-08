@@ -79,9 +79,16 @@ export class UserMappingProvider {
     private logger?: Logger,
     fileExtension?: string
   ) {
-    this.fileExtension = fileExtension || '.fume';
+    const rawExt = fileExtension ?? '.fume';
+    const trimmed = rawExt.trim();
+    if (!trimmed) {
+      throw new Error(`Invalid fileExtension '${rawExt}'.`);
+    }
 
-    const ext = this.fileExtension.trim().toLowerCase();
+    const normalized = trimmed.startsWith('.') ? trimmed.toLowerCase() : `.${trimmed.toLowerCase()}`;
+    this.fileExtension = normalized;
+
+    const ext = normalized;
     if (ext === '.json' || ext === 'json') {
       throw new Error(`Invalid fileExtension '${this.fileExtension}'. The '.json' extension is reserved (aliases.json).`);
     }

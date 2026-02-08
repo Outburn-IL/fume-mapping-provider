@@ -57,7 +57,15 @@ export class FumeMappingProvider {
       return;
     }
 
-    const ext = this.config.fileExtension.trim().toLowerCase();
+    const trimmed = this.config.fileExtension.trim();
+    if (!trimmed) {
+      throw new Error(`Invalid fileExtension '${this.config.fileExtension}'.`);
+    }
+
+    const normalized = trimmed.startsWith('.') ? trimmed.toLowerCase() : `.${trimmed.toLowerCase()}`;
+    this.config.fileExtension = normalized;
+
+    const ext = normalized;
     if (ext === '.json' || ext === 'json') {
       throw new Error(`Invalid fileExtension '${this.config.fileExtension}'. The '.json' extension is reserved (aliases.json).`);
     }
