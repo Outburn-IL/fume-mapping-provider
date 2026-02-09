@@ -1,4 +1,4 @@
-import { UserMapping, PackageMapping, StructureMap, GetPackageMappingOptions, ConceptMap, AliasObject } from './types';
+import { UserMapping, PackageMapping, StructureMap, GetPackageMappingOptions, ConceptMap, AliasObject, StaticJsonValue } from './types';
 import { Logger } from '@outburn/types';
 import { structureMapToExpression, conceptMapToAliasObject } from './converters';
 import * as fs from 'fs/promises';
@@ -89,7 +89,7 @@ export class UserMappingProvider {
     this.fileExtension = normalized;
 
     const ext = normalized;
-    if (ext === '.json' || ext === 'json') {
+    if (ext === UserMappingProvider.JSON_EXTENSION) {
       throw new Error(`Invalid fileExtension '${this.fileExtension}'. The '.json' extension is reserved (aliases.json).`);
     }
   }
@@ -107,10 +107,17 @@ export class UserMappingProvider {
   }
 
   /**
-   * Check if a mapping key is valid for JSON mappings (generic key regex).
+   * Check if a key is valid for static JSON values (generic key regex).
+   */
+  isValidStaticJsonValueKey(key: string): boolean {
+    return this.isValidKey(key) && key !== 'aliases';
+  }
+
+  /**
+   * @deprecated Use isValidStaticJsonValueKey instead.
    */
   isValidJsonMappingKey(key: string): boolean {
-    return this.isValidKey(key) && key !== 'aliases';
+    return this.isValidStaticJsonValueKey(key);
   }
 
   /**
@@ -145,15 +152,6 @@ export class UserMappingProvider {
         mappings.set(key, mapping);
       }
 
-      // Load from JSON files (overrides file + server)
-      const jsonMappings = await this.loadJsonFileMappings();
-      for (const [key, mapping] of jsonMappings) {
-        const existing = mappings.get(key);
-        if (existing) {
-          this.logger?.warn?.(`JSON mapping '${key}' overrides ${existing.sourceType} mapping with same key`);
-        }
-        mappings.set(key, mapping);
-      }
     }
     
     return mappings;
@@ -164,14 +162,8 @@ export class UserMappingProvider {
    * Checks both file and server (file takes precedence)
    */
   async refreshMapping(key: string): Promise<UserMapping | null> {
-    // Check JSON first (highest priority file source)
+    // Check text-based file mapping
     if (this.mappingsFolder) {
-      const jsonMapping = await this.loadJsonFileMapping(key);
-      if (jsonMapping) {
-        return jsonMapping;
-      }
-
-      // Then check text-based file mapping
       const fileMapping = await this.loadFileMapping(key);
       if (fileMapping) {
         return fileMapping;
@@ -412,12 +404,38 @@ export class UserMappingProvider {
     }
   }
 
-  private async loadJsonFileMappings(): Promise<Map<string, UserMapping>> {
-    const mappings = new Map<string, UserMapping>();
+  /**
+   * @deprecated JSON files are no longer treated as mappings.
+   * Use loadStaticJsonValue instead.
+   */
+  async loadJsonFileMapping(_key: string): Promise<UserMapping | null> {
+    return null;
+  }
+
+  /**
+   * Read raw JSON mapping file contents for change detection.
+   */
+  /**
+   * @deprecated JSON files are no longer treated as mappings.
+   * Use readStaticJsonValueRaw instead.
+   */
+  async readJsonFileRaw(_key: string): Promise<string | null> {
+    return null;
+  }
+
+  // ===== Static JSON values (file-based) =====
+
+  /**
+   * Load all static JSON values from the mappings folder.
+   * - Includes `*.json` files
+   * - Excludes reserved `aliases.json`
+   */
+  async loadStaticJsonValues(): Promise<Map<string, StaticJsonValue>> {
+    const values = new Map<string, StaticJsonValue>();
 
     /* istanbul ignore if */
     if (!this.mappingsFolder) {
-      return mappings;
+      return values;
     }
 
     try {
@@ -430,10 +448,9 @@ export class UserMappingProvider {
         }
 
         const key = path.basename(file, UserMappingProvider.JSON_EXTENSION);
-
-        if (!this.isValidKey(key)) {
+        if (!this.isValidStaticJsonValueKey(key)) {
           this.logger?.warn?.(
-            `Ignoring JSON mapping file '${file}' due to invalid mapping name '${key}' (must match ${UserMappingProvider.KEY_REGEX}).`
+            `Ignoring static JSON value file '${file}' due to invalid key '${key}' (must match ${UserMappingProvider.KEY_REGEX}).`
           );
           continue;
         }
@@ -446,18 +463,18 @@ export class UserMappingProvider {
           try {
             parsed = JSON.parse(raw);
           } catch (error) {
-            this.logger?.warn?.(`Invalid JSON mapping file '${file}'; ignoring. ${String(error)}`);
+            this.logger?.warn?.(`Invalid static JSON value file '${file}'; ignoring. ${String(error)}`);
             continue;
           }
 
-          mappings.set(key, {
+          values.set(key, {
             key,
-            expression: parsed,
+            value: parsed,
             sourceType: 'file',
             source: path.resolve(this.mappingsFolder, file)
           });
         } catch (error) {
-          this.logger?.warn?.(`Failed to load JSON mapping from file ${file}; ignoring. ${String(error)}`);
+          this.logger?.warn?.(`Failed to load static JSON value from file ${file}; ignoring. ${String(error)}`);
         }
       }
     } catch (error) {
@@ -465,24 +482,19 @@ export class UserMappingProvider {
       this.logger?.error?.(`Failed to read mappings folder ${this.mappingsFolder}:`, error);
     }
 
-    return mappings;
+    return values;
   }
 
-  async loadJsonFileMapping(key: string): Promise<UserMapping | null> {
+  /**
+   * Load a single static JSON value by key.
+   */
+  async loadStaticJsonValue(key: string): Promise<StaticJsonValue | null> {
     /* istanbul ignore if */
     if (!this.mappingsFolder) {
       return null;
     }
 
-    // Reserved: aliases.json is not a mapping
-    if (key === 'aliases') {
-      return null;
-    }
-
-    if (!this.isValidKey(key)) {
-      this.logger?.warn?.(
-        `Ignoring JSON mapping refresh for invalid mapping name '${key}' (must match ${UserMappingProvider.KEY_REGEX}).`
-      );
+    if (!this.isValidStaticJsonValueKey(key)) {
       return null;
     }
 
@@ -495,12 +507,12 @@ export class UserMappingProvider {
         const parsed = JSON.parse(raw);
         return {
           key,
-          expression: parsed,
+          value: parsed,
           sourceType: 'file',
           source: path.resolve(this.mappingsFolder, filename)
         };
       } catch (error) {
-        this.logger?.warn?.(`Invalid JSON mapping file '${filename}'; ignoring. ${String(error)}`);
+        this.logger?.warn?.(`Invalid static JSON value file '${filename}'; ignoring. ${String(error)}`);
         return null;
       }
     } catch (_error) {
@@ -509,19 +521,15 @@ export class UserMappingProvider {
   }
 
   /**
-   * Read raw JSON mapping file contents for change detection.
+   * Read raw JSON value file contents for change detection.
    */
-  async readJsonFileRaw(key: string): Promise<string | null> {
+  async readStaticJsonValueRaw(key: string): Promise<string | null> {
     /* istanbul ignore if */
     if (!this.mappingsFolder) {
       return null;
     }
 
-    if (key === 'aliases') {
-      return null;
-    }
-
-    if (!this.isValidKey(key)) {
+    if (!this.isValidStaticJsonValueKey(key)) {
       return null;
     }
 
