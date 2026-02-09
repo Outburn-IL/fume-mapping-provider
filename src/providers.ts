@@ -114,13 +114,6 @@ export class UserMappingProvider {
   }
 
   /**
-   * @deprecated Use isValidStaticJsonValueKey instead.
-   */
-  isValidJsonMappingKey(key: string): boolean {
-    return this.isValidStaticJsonValueKey(key);
-  }
-
-  /**
    * Check if a mapping key is valid for text-based file mappings.
    */
   isValidFileMappingKeyForPolling(key: string): boolean {
@@ -402,25 +395,6 @@ export class UserMappingProvider {
       // File not found
       return null;
     }
-  }
-
-  /**
-   * @deprecated JSON files are no longer treated as mappings.
-   * Use loadStaticJsonValue instead.
-   */
-  async loadJsonFileMapping(_key: string): Promise<UserMapping | null> {
-    return null;
-  }
-
-  /**
-   * Read raw JSON mapping file contents for change detection.
-   */
-  /**
-   * @deprecated JSON files are no longer treated as mappings.
-   * Use readStaticJsonValueRaw instead.
-   */
-  async readJsonFileRaw(_key: string): Promise<string | null> {
-    return null;
   }
 
   // ===== Static JSON values (file-based) =====
