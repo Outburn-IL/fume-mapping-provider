@@ -1,6 +1,6 @@
 {
   "name": "@outburn/fume-mapping-provider",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Manage pre-defined, named FUME expressions (mappings) from FHIR packages, servers, or files",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -47,7 +47,7 @@
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.54.0"
+    "typescript-eslint": "^8.55.0"
   },
   "engines": {
     "node": ">=18.0.0"

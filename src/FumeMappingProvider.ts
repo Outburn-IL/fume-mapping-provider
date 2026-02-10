@@ -1,4 +1,4 @@
-import { FumeMappingProviderConfig, UserMapping, UserMappingMetadata, PackageMapping, PackageMappingMetadata, GetPackageMappingOptions, AliasObject, AliasObjectWithMetadata, AliasWithMetadata, ConceptMap, StructureMap } from './types';
+import { FumeMappingProviderConfig, UserMapping, UserMappingMetadata, PackageMapping, PackageMappingMetadata, GetPackageMappingOptions, AliasObject, AliasObjectWithMetadata, AliasWithMetadata, ConceptMap, StructureMap, StaticJsonValue, StaticJsonValueMetadata } from './types';
 import { Logger } from '@outburn/types';
 import { UserMappingProvider, PackageMappingProvider, AliasProvider } from './providers';
 import { conceptMapToAliasObject, aliasObjectToConceptMap, structureMapToExpression, expressionToStructureMap } from './converters';
@@ -17,12 +17,13 @@ export class FumeMappingProvider {
   private packageProvider?: PackageMappingProvider;
   private aliasProvider?: AliasProvider;
   private userMappingsCache: Map<string, UserMapping> = new Map();
+  private staticJsonValuesCache: Map<string, StaticJsonValue> = new Map();
   private serverAliases: AliasObject = {};
   private fileAliases: AliasObject = {};
   private aliasResourceId?: string;
   private aliasResourceMeta?: { versionId?: string; lastUpdated?: string };
   private serverMappingsMeta: Map<string, { versionId?: string; lastUpdated?: string }> = new Map();
-  private jsonMappingRawCache: Map<string, string> = new Map();
+  private staticJsonRawCache: Map<string, string> = new Map();
   private filePollingState: Map<string, { mtimeMs: number; size: number; key: string; isJson: boolean; isAliasFile: boolean }>
     = new Map();
   private filePollingTimer?: NodeJS.Timeout;
@@ -66,7 +67,7 @@ export class FumeMappingProvider {
     this.config.fileExtension = normalized;
 
     const ext = normalized;
-    if (ext === '.json' || ext === 'json') {
+    if (ext === '.json') {
       throw new Error(`Invalid fileExtension '${this.config.fileExtension}'. The '.json' extension is reserved (aliases.json).`);
     }
   }
@@ -113,6 +114,7 @@ export class FumeMappingProvider {
     this.logger?.info?.('Initializing FUME Mapping Provider');
     
     await this.refreshUserMappingsFromSources('initialize');
+    await this.refreshStaticJsonValuesFromSources('initialize');
     await this.refreshAliasesFromSources('initialize');
     await this.primeFilePollingState();
 
@@ -143,15 +145,8 @@ export class FumeMappingProvider {
       return null;
     }
 
-    // File-based sources take precedence
+    // File-based mapping takes precedence over server
     if (this.config.mappingsFolder) {
-      const jsonMapping = await this.userProvider.loadJsonFileMapping(key);
-      if (jsonMapping) {
-        const raw = await this.userProvider.readJsonFileRaw(key);
-        this.applySingleMappingUpdate(key, jsonMapping, raw ?? undefined);
-        return jsonMapping;
-      }
-
       const fileMapping = await this.userProvider.loadFileMapping(key);
       if (fileMapping) {
         this.applySingleMappingUpdate(key, fileMapping);
@@ -161,7 +156,6 @@ export class FumeMappingProvider {
 
     if (!this.config.fhirClient) {
       this.userMappingsCache.delete(key);
-      this.jsonMappingRawCache.delete(key);
       this.serverMappingsMeta.delete(key);
       this.logger?.debug?.(`User mapping no longer exists: ${key}`);
       return null;
@@ -186,7 +180,6 @@ export class FumeMappingProvider {
         }
 
         this.userMappingsCache.delete(key);
-        this.jsonMappingRawCache.delete(key);
         this.serverMappingsMeta.delete(key);
         this.logger?.debug?.(`User mapping no longer exists or is not a FUME mapping: ${key}`);
         return null;
@@ -194,7 +187,6 @@ export class FumeMappingProvider {
 
       if (response.status === 404 || response.status === 410) {
         this.userMappingsCache.delete(key);
-        this.jsonMappingRawCache.delete(key);
         this.serverMappingsMeta.delete(key);
         this.logger?.debug?.(`User mapping deleted on server: ${key}`);
         return null;
@@ -238,6 +230,67 @@ export class FumeMappingProvider {
    */
   getUserMapping(key: string): UserMapping | undefined {
     return this.userMappingsCache.get(key);
+  }
+
+  // ========== STATIC JSON VALUE API ==========
+
+  /**
+   * Reload all static JSON values from the mappings folder.
+   */
+  async reloadStaticJsonValues(): Promise<void> {
+    await this.refreshStaticJsonValuesFromSources('manual');
+  }
+
+  /**
+   * Refresh a specific static JSON value by key.
+   */
+  async refreshStaticJsonValue(key: string): Promise<StaticJsonValue | null> {
+    if (!this.userProvider || !this.config.mappingsFolder) {
+      return null;
+    }
+
+    const value = await this.userProvider.loadStaticJsonValue(key);
+    if (value) {
+      const raw = await this.userProvider.readStaticJsonValueRaw(key);
+      this.applySingleStaticJsonValueUpdate(key, value, raw ?? undefined);
+      return value;
+    }
+
+    this.staticJsonValuesCache.delete(key);
+    this.staticJsonRawCache.delete(key);
+    return null;
+  }
+
+  /**
+   * Get all static JSON values (from cache).
+   */
+  getStaticJsonValues(): StaticJsonValue[] {
+    return Array.from(this.staticJsonValuesCache.values());
+  }
+
+  /**
+   * Get all static JSON value keys (from cache).
+   */
+  getStaticJsonValueKeys(): string[] {
+    return Array.from(this.staticJsonValuesCache.keys());
+  }
+
+  /**
+   * Get static JSON value metadata (from cache).
+   */
+  getStaticJsonValuesMetadata(): StaticJsonValueMetadata[] {
+    return this.getStaticJsonValues().map(v => ({
+      key: v.key,
+      sourceType: v.sourceType,
+      source: v.source
+    }));
+  }
+
+  /**
+   * Get a static JSON value by key (from cache).
+   */
+  getStaticJsonValue(key: string): StaticJsonValue | undefined {
+    return this.staticJsonValuesCache.get(key);
   }
 
   // ========== PACKAGE MAPPING API ==========
@@ -367,10 +420,26 @@ export class FumeMappingProvider {
     );
 
     const mappings = await this.userProvider.loadMappings();
-    const jsonRawByKey = await this.readJsonRawForMappings(mappings);
-    this.applyMappingsIncrementally(mappings, jsonRawByKey);
+    this.applyMappingsIncrementally(mappings);
 
     this.logger?.info?.(`Loaded ${this.userMappingsCache.size} user mapping(s)`);
+  }
+
+  private async refreshStaticJsonValuesFromSources(trigger: 'initialize' | 'manual' | 'resync'): Promise<void> {
+    if (!this.userProvider || !this.config.mappingsFolder) {
+      this.staticJsonValuesCache.clear();
+      this.staticJsonRawCache.clear();
+      return;
+    }
+
+    this.logger?.info?.(
+      `${trigger === 'initialize' ? 'Loading' : 'Reloading'} static JSON values from file sources`
+    );
+
+    const { values, rawByKey } = await this.userProvider.loadStaticJsonValuesWithRaw();
+    this.applyStaticJsonValuesIncrementally(values, rawByKey);
+
+    this.logger?.info?.(`Loaded ${this.staticJsonValuesCache.size} static JSON value(s)`);
   }
 
   private async refreshAliasesFromSources(trigger: 'initialize' | 'manual' | 'resync'): Promise<void> {
@@ -432,14 +501,9 @@ export class FumeMappingProvider {
     return true;
   }
 
-  private isJsonFileMapping(mapping: UserMapping): boolean {
-    return mapping.sourceType === 'file' && mapping.source.toLowerCase().endsWith('.json');
-  }
-
   private mappingsEquivalent(
     existing: UserMapping,
-    incoming: UserMapping,
-    incomingJsonRaw?: string
+    incoming: UserMapping
   ): boolean {
     if (existing.sourceType !== incoming.sourceType) {
       return false;
@@ -454,72 +518,85 @@ export class FumeMappingProvider {
       return false;
     }
 
-    if (this.isJsonFileMapping(incoming)) {
-      const existingRaw = this.jsonMappingRawCache.get(existing.key);
-      if (existingRaw === undefined || incomingJsonRaw === undefined) {
-        return false;
-      }
-      return existingRaw === incomingJsonRaw;
-    }
-
     return existing.expression === incoming.expression;
   }
 
-  private applySingleMappingUpdate(key: string, mapping: UserMapping, jsonRaw?: string): void {
+  private applySingleMappingUpdate(key: string, mapping: UserMapping): void {
     const existing = this.userMappingsCache.get(key);
-    const shouldUpdate = !existing || !this.mappingsEquivalent(existing, mapping, jsonRaw);
+    const shouldUpdate = !existing || !this.mappingsEquivalent(existing, mapping);
 
     if (shouldUpdate) {
       this.userMappingsCache.set(key, mapping);
       this.logger?.debug?.(`Updated user mapping: ${key}`);
     }
-
-    if (this.isJsonFileMapping(mapping)) {
-      if (jsonRaw !== undefined) {
-        this.jsonMappingRawCache.set(key, jsonRaw);
-      }
-    } else {
-      this.jsonMappingRawCache.delete(key);
-    }
   }
 
-  private applyMappingsIncrementally(
-    mappings: Map<string, UserMapping>,
-    jsonRawByKey: Map<string, string>
-  ): void {
+  private applyMappingsIncrementally(mappings: Map<string, UserMapping>): void {
     for (const [key, mapping] of mappings.entries()) {
-      const jsonRaw = jsonRawByKey.get(key);
-      this.applySingleMappingUpdate(key, mapping, jsonRaw);
+      this.applySingleMappingUpdate(key, mapping);
     }
 
     for (const key of Array.from(this.userMappingsCache.keys())) {
       if (!mappings.has(key)) {
         this.userMappingsCache.delete(key);
-        this.jsonMappingRawCache.delete(key);
         this.serverMappingsMeta.delete(key);
         this.logger?.debug?.(`Removed user mapping from cache: ${key}`);
       }
     }
   }
 
-  private async readJsonRawForMappings(mappings: Map<string, UserMapping>): Promise<Map<string, string>> {
-    const rawByKey = new Map<string, string>();
-
-    if (!this.userProvider) {
-      return rawByKey;
+  private staticJsonValuesEquivalent(
+    existing: StaticJsonValue,
+    incoming: StaticJsonValue,
+    incomingRaw?: string
+  ): boolean {
+    if (existing.sourceType !== incoming.sourceType) {
+      return false;
+    }
+    if (existing.source !== incoming.source) {
+      return false;
     }
 
-    for (const [key, mapping] of mappings.entries()) {
-      if (this.isJsonFileMapping(mapping)) {
-        const raw = await this.userProvider.readJsonFileRaw(key);
-        if (raw !== null) {
-          rawByKey.set(key, raw);
-        }
+    const existingRaw = this.staticJsonRawCache.get(existing.key);
+    if (existingRaw === undefined || incomingRaw === undefined) {
+      return false;
+    }
+    return existingRaw === incomingRaw;
+  }
+
+  private applySingleStaticJsonValueUpdate(key: string, value: StaticJsonValue, raw?: string): void {
+    const existing = this.staticJsonValuesCache.get(key);
+    const shouldUpdate = !existing || !this.staticJsonValuesEquivalent(existing, value, raw);
+
+    if (shouldUpdate) {
+      this.staticJsonValuesCache.set(key, value);
+      this.logger?.debug?.(`Updated static JSON value: ${key}`);
+    }
+
+    if (raw !== undefined) {
+      this.staticJsonRawCache.set(key, raw);
+    }
+  }
+
+  private applyStaticJsonValuesIncrementally(
+    values: Map<string, StaticJsonValue>,
+    rawByKey: Map<string, string>
+  ): void {
+    for (const [key, value] of values.entries()) {
+      const raw = rawByKey.get(key);
+      this.applySingleStaticJsonValueUpdate(key, value, raw);
+    }
+
+    for (const key of Array.from(this.staticJsonValuesCache.keys())) {
+      if (!values.has(key)) {
+        this.staticJsonValuesCache.delete(key);
+        this.staticJsonRawCache.delete(key);
+        this.logger?.debug?.(`Removed static JSON value from cache: ${key}`);
       }
     }
-
-    return rawByKey;
   }
+
+
 
   private async primeFilePollingState(): Promise<void> {
     if (!this.config.mappingsFolder || !this.userProvider) {
@@ -544,7 +621,7 @@ export class FumeMappingProvider {
           ? 'aliases'
           : path.basename(file, isJson ? '.json' : (this.config.fileExtension || '.fume'));
 
-        if (isJson && !this.userProvider.isValidJsonMappingKey(key)) {
+        if (isJson && !this.userProvider.isValidStaticJsonValueKey(key)) {
           continue;
         }
 
@@ -562,9 +639,9 @@ export class FumeMappingProvider {
         });
 
         if (isJson && key) {
-          const raw = await this.userProvider.readJsonFileRaw(key);
+          const raw = await this.userProvider.readStaticJsonValueRaw(key);
           if (raw !== null) {
-            this.jsonMappingRawCache.set(key, raw);
+            this.staticJsonRawCache.set(key, raw);
           }
         }
       }
@@ -597,7 +674,7 @@ export class FumeMappingProvider {
           ? 'aliases'
           : path.basename(file, isJson ? '.json' : (this.config.fileExtension || '.fume'));
 
-        if (isJson && !this.userProvider.isValidJsonMappingKey(key)) {
+        if (isJson && !this.userProvider.isValidStaticJsonValueKey(key)) {
           continue;
         }
 
@@ -619,11 +696,11 @@ export class FumeMappingProvider {
           if (isAliasFile) {
             await this.refreshAliasesFromSources('manual');
           } else if (isJson) {
-            const raw = await this.userProvider.readJsonFileRaw(key);
-            const prevRaw = this.jsonMappingRawCache.get(key);
+            const raw = await this.userProvider.readStaticJsonValueRaw(key);
+            const prevRaw = this.staticJsonRawCache.get(key);
             if (raw !== null && raw !== prevRaw) {
-              this.jsonMappingRawCache.set(key, raw);
-              await this.refreshUserMapping(key);
+              this.staticJsonRawCache.set(key, raw);
+              await this.refreshStaticJsonValue(key);
             }
           } else if (isMappingFile) {
             const fileMapping = await this.userProvider.loadFileMapping(key);
@@ -653,9 +730,11 @@ export class FumeMappingProvider {
           this.filePollingState.delete(filePath);
           if (prev.isAliasFile) {
             await this.refreshAliasesFromSources('manual');
+          } else if (prev.isJson) {
+            this.staticJsonValuesCache.delete(prev.key);
+            this.staticJsonRawCache.delete(prev.key);
           } else {
             await this.refreshUserMapping(prev.key);
-            this.jsonMappingRawCache.delete(prev.key);
           }
         }
       }
@@ -721,6 +800,7 @@ export class FumeMappingProvider {
     this.resyncInProgress = true;
     try {
       await this.refreshUserMappingsFromSources('resync');
+      await this.refreshStaticJsonValuesFromSources('resync');
       await this.refreshAliasesFromSources('resync');
       await this.primeFilePollingState();
     } finally {

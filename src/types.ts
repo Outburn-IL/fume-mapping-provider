@@ -43,11 +43,34 @@ export interface UserMappingMetadata {
  */
 export interface UserMapping extends UserMappingMetadata {
   /**
-   * Mapping value.
-   * - For text-based mappings (e.g. .fume): string
-   * - For JSON mappings (*.json): parsed JSON value (can be string/object/array/number/boolean/null)
+   * The FUME expression.
    */
-  expression: unknown;
+  expression: string;
+}
+
+/**
+ * Static JSON value metadata (file-based).
+ *
+ * These are loaded from `*.json` files in the mappings folder (excluding `aliases.json`).
+ * They are intentionally NOT treated as mappings.
+ */
+export interface StaticJsonValueMetadata {
+  /** Unique key (derived from the filename without extension) */
+  key: string;
+
+  /** Source type (currently only 'file') */
+  sourceType: 'file';
+
+  /** Absolute path to the JSON file */
+  source: string;
+}
+
+/**
+ * A complete static JSON value with parsed value and metadata.
+ */
+export interface StaticJsonValue extends StaticJsonValueMetadata {
+  /** Parsed JSON value (object/array/string/number/boolean/null) */
+  value: unknown;
 }
 
 /**

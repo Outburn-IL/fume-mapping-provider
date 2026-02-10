@@ -86,14 +86,26 @@ await provider.reloadUserMappings();
 await provider.refreshUserMapping('my-mapping-key');
 ```
 
-### JSON Mapping Files (*.json)
+### Static JSON Values (*.json)
 
-If `mappingsFolder` is configured, the provider also loads `*.json` files from that folder as **JSON-valued mappings**.
+If `mappingsFolder` is configured, the provider also loads `*.json` files from that folder as **static JSON values**.
 
-- The mapping key is the filename without `.json`
-- The mapping value is the parsed JSON value (object/array/string/number/boolean/null)
-- The reserved filename `aliases.json` is **never** treated as a mapping
-- If both `myMap.json` and `myMap.fume` exist, the JSON mapping overrides the text mapping (a warning is logged if a logger is provided)
+- The key is the filename without `.json`
+- The value is the parsed JSON value (object/array/string/number/boolean/null)
+- The reserved filename `aliases.json` is **never** treated as a static value
+- Static JSON values are **not** treated as mappings and do not override `*.fume` mappings; they are exposed via a separate API.
+
+```typescript
+// Reload all static JSON values
+await provider.reloadStaticJsonValues();
+
+// Refresh a specific static JSON value by key
+await provider.refreshStaticJsonValue('myStaticKey');
+
+// Read from cache
+const value = provider.getStaticJsonValue('myStaticKey');
+// Returns: StaticJsonValue | undefined
+```
 
 ### Get User Mappings (Lightning Fast ⚡)
 
@@ -119,7 +131,7 @@ const mapping = provider.getUserMapping('my-key');
 
 On `initialize()`, the provider automatically starts polling sources to keep the in-memory cache aligned with files and server resources.
 
-- **File polling** (default: 5s): detects changes in mapping files and `aliases.json` incrementally.
+- **File polling** (default: 5s): detects changes in mapping files, static JSON value files (`*.json`), and `aliases.json` incrementally.
 - **Server polling** (default: 30s):
   - Aliases: conditional read of the alias ConceptMap (ETag/Last-Modified).
   - Mappings: StructureMap search with `_lastUpdated`.
@@ -132,11 +144,18 @@ Disable any polling loop by setting its interval to `<= 0`.
 ```typescript
 interface UserMapping {
   key: string;                    // Unique identifier
-  expression: unknown;            // FUME expression (string) or JSON value for *.json
+  expression: string;             // FUME expression
   sourceType: 'file' | 'server';  // Origin
   source: string;                 // Absolute file path or full server URL
   name?: string;                  // StructureMap.name
   url?: string;                   // StructureMap.url
+}
+
+interface StaticJsonValue {
+  key: string;               // Filename without `.json`
+  value: unknown;            // Parsed JSON value
+  sourceType: 'file';        // Origin
+  source: string;            // Absolute file path
 }
 ```
 

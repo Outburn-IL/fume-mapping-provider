@@ -5,6 +5,8 @@ export { FumeMappingProvider } from './FumeMappingProvider';
 export {
   UserMapping,
   UserMappingMetadata,
+  StaticJsonValue,
+  StaticJsonValueMetadata,
   PackageMapping,
   PackageMappingMetadata,
   StructureMap,
