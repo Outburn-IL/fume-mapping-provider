@@ -131,8 +131,7 @@ const mapping = provider.getUserMapping('my-key');
 
 On `initialize()`, the provider automatically starts polling sources to keep the in-memory cache aligned with files and server resources.
 
-- **File polling** (default: 5s): detects changes in mapping files and `aliases.json` incrementally.
-- **File polling** (default: 5s): detects changes in mapping files, static JSON value files (`*.json` excluding `aliases.json`), and `aliases.json` incrementally.
+- **File polling** (default: 5s): detects changes in mapping files, static JSON value files (`*.json`), and `aliases.json` incrementally.
 - **Server polling** (default: 30s):
   - Aliases: conditional read of the alias ConceptMap (ETag/Last-Modified).
   - Mappings: StructureMap search with `_lastUpdated`.
