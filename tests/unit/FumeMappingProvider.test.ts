@@ -102,6 +102,7 @@ describe('FumeMappingProvider', () => {
       refreshMapping?: jest.Mock;
       loadFileMapping: jest.Mock;
       loadStaticJsonValues: jest.Mock;
+      loadStaticJsonValuesWithRaw: jest.Mock;
       loadStaticJsonValue: jest.Mock;
       readStaticJsonValueRaw: jest.Mock;
       conditionalReadServerMapping: jest.Mock;
@@ -116,6 +117,7 @@ describe('FumeMappingProvider', () => {
         refreshMapping: jest.fn(),
         loadFileMapping: jest.fn().mockResolvedValue(null),
         loadStaticJsonValues: jest.fn().mockResolvedValue(new Map()),
+        loadStaticJsonValuesWithRaw: jest.fn().mockResolvedValue({ values: new Map(), rawByKey: new Map() }),
         loadStaticJsonValue: jest.fn().mockResolvedValue(null),
         readStaticJsonValueRaw: jest.fn().mockResolvedValue(null),
         conditionalReadServerMapping: jest.fn().mockResolvedValue({ status: 404 }),
@@ -405,6 +407,7 @@ describe('FumeMappingProvider', () => {
     let mockUserProvider: {
       loadMappings: jest.Mock;
       loadStaticJsonValues: jest.Mock;
+      loadStaticJsonValuesWithRaw: jest.Mock;
       loadStaticJsonValue: jest.Mock;
       readStaticJsonValueRaw: jest.Mock;
       loadFileMapping: jest.Mock;
@@ -418,6 +421,7 @@ describe('FumeMappingProvider', () => {
       mockUserProvider = {
         loadMappings: jest.fn().mockResolvedValue(new Map()),
         loadStaticJsonValues: jest.fn().mockResolvedValue(new Map()),
+        loadStaticJsonValuesWithRaw: jest.fn().mockResolvedValue({ values: new Map(), rawByKey: new Map() }),
         loadStaticJsonValue: jest.fn().mockResolvedValue(null),
         readStaticJsonValueRaw: jest.fn().mockResolvedValue(null),
         loadFileMapping: jest.fn().mockResolvedValue(null),
@@ -442,8 +446,10 @@ describe('FumeMappingProvider', () => {
         ['foo', { key: 'foo', value: { a: 1 }, sourceType: 'file' as const, source: '/test/mappings/foo.json' }]
       ]);
 
-      mockUserProvider.loadStaticJsonValues.mockResolvedValue(mockValues);
-      mockUserProvider.readStaticJsonValueRaw.mockResolvedValueOnce('{"a":1}');
+      mockUserProvider.loadStaticJsonValuesWithRaw.mockResolvedValue({
+        values: mockValues,
+        rawByKey: new Map([['foo', '{"a":1}']])
+      });
 
       await provider.initialize();
 
@@ -459,8 +465,10 @@ describe('FumeMappingProvider', () => {
         ['gone', { key: 'gone', value: 123, sourceType: 'file' as const, source: '/test/mappings/gone.json' }]
       ]);
 
-      mockUserProvider.loadStaticJsonValues.mockResolvedValue(mockValues);
-      mockUserProvider.readStaticJsonValueRaw.mockResolvedValueOnce('123');
+      mockUserProvider.loadStaticJsonValuesWithRaw.mockResolvedValue({
+        values: mockValues,
+        rawByKey: new Map([['gone', '123']])
+      });
       await provider.initialize();
       expect(provider.getStaticJsonValue('gone')).toBeDefined();
 
@@ -618,6 +626,7 @@ describe('FumeMappingProvider', () => {
         refreshMapping: jest.fn(),
         loadFileMapping: jest.fn().mockResolvedValue(null),
         loadStaticJsonValues: jest.fn().mockResolvedValue(new Map()),
+        loadStaticJsonValuesWithRaw: jest.fn().mockResolvedValue({ values: new Map(), rawByKey: new Map() }),
         loadStaticJsonValue: jest.fn().mockResolvedValue(null),
         readStaticJsonValueRaw: jest.fn().mockResolvedValue(null),
         conditionalReadServerMapping: jest.fn().mockResolvedValue({ status: 404 }),

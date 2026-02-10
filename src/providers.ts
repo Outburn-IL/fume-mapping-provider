@@ -405,11 +405,25 @@ export class UserMappingProvider {
    * - Excludes reserved `aliases.json`
    */
   async loadStaticJsonValues(): Promise<Map<string, StaticJsonValue>> {
+    const { values } = await this.loadStaticJsonValuesWithRaw();
+    return values;
+  }
+
+  /**
+   * Load all static JSON values from the mappings folder and retain raw contents.
+   * - Includes `*.json` files
+   * - Excludes reserved `aliases.json`
+   */
+  async loadStaticJsonValuesWithRaw(): Promise<{
+    values: Map<string, StaticJsonValue>;
+    rawByKey: Map<string, string>;
+  }> {
     const values = new Map<string, StaticJsonValue>();
+    const rawByKey = new Map<string, string>();
 
     /* istanbul ignore if */
     if (!this.mappingsFolder) {
-      return values;
+      return { values, rawByKey };
     }
 
     try {
@@ -447,6 +461,7 @@ export class UserMappingProvider {
             sourceType: 'file',
             source: path.resolve(this.mappingsFolder, file)
           });
+          rawByKey.set(key, raw);
         } catch (error) {
           this.logger?.warn?.(`Failed to load static JSON value from file ${file}; ignoring. ${String(error)}`);
         }
@@ -456,7 +471,7 @@ export class UserMappingProvider {
       this.logger?.error?.(`Failed to read mappings folder ${this.mappingsFolder}:`, error);
     }
 
-    return values;
+    return { values, rawByKey };
   }
 
   /**

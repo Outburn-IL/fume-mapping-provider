@@ -436,8 +436,7 @@ export class FumeMappingProvider {
       `${trigger === 'initialize' ? 'Loading' : 'Reloading'} static JSON values from file sources`
     );
 
-    const values = await this.userProvider.loadStaticJsonValues();
-    const rawByKey = await this.readStaticJsonRawForValues(values);
+    const { values, rawByKey } = await this.userProvider.loadStaticJsonValuesWithRaw();
     this.applyStaticJsonValuesIncrementally(values, rawByKey);
 
     this.logger?.info?.(`Loaded ${this.staticJsonValuesCache.size} static JSON value(s)`);
@@ -597,22 +596,7 @@ export class FumeMappingProvider {
     }
   }
 
-  private async readStaticJsonRawForValues(values: Map<string, StaticJsonValue>): Promise<Map<string, string>> {
-    const rawByKey = new Map<string, string>();
 
-    if (!this.userProvider) {
-      return rawByKey;
-    }
-
-    for (const [key] of values.entries()) {
-      const raw = await this.userProvider.readStaticJsonValueRaw(key);
-      if (raw !== null) {
-        rawByKey.set(key, raw);
-      }
-    }
-
-    return rawByKey;
-  }
 
   private async primeFilePollingState(): Promise<void> {
     if (!this.config.mappingsFolder || !this.userProvider) {
