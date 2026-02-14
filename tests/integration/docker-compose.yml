@@ -1,3 +1,5 @@
+name: fume-mapping-provider_hapi_tests
+
 services:
   hapi-fhir:
     image: hapiproject/hapi:latest
