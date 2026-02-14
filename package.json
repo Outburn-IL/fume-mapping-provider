@@ -17,7 +17,7 @@
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "prepublishOnly": "npm run build",
-    "test:stop-hapi": "docker stop fume-mapping-provider-test-hapi"
+    "docker:stop": "docker stop fume-mapping-provider-test-hapi"
   },
   "keywords": [
     "fume",
