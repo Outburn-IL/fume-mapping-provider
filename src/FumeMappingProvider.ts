@@ -415,14 +415,14 @@ export class FumeMappingProvider {
       return;
     }
 
-    this.logger?.info?.(
+    this.logger?.debug?.(
       `${trigger === 'initialize' ? 'Loading' : 'Reloading'} user mappings from sources`
     );
 
     const mappings = await this.userProvider.loadMappings();
     this.applyMappingsIncrementally(mappings);
 
-    this.logger?.info?.(`Loaded ${this.userMappingsCache.size} user mapping(s)`);
+    this.logger?.debug?.(`Loaded ${this.userMappingsCache.size} user mapping(s)`);
   }
 
   private async refreshStaticJsonValuesFromSources(trigger: 'initialize' | 'manual' | 'resync'): Promise<void> {
@@ -432,18 +432,18 @@ export class FumeMappingProvider {
       return;
     }
 
-    this.logger?.info?.(
+    this.logger?.debug?.(
       `${trigger === 'initialize' ? 'Loading' : 'Reloading'} static JSON values from file sources`
     );
 
     const { values, rawByKey } = await this.userProvider.loadStaticJsonValuesWithRaw();
     this.applyStaticJsonValuesIncrementally(values, rawByKey);
 
-    this.logger?.info?.(`Loaded ${this.staticJsonValuesCache.size} static JSON value(s)`);
+    this.logger?.debug?.(`Loaded ${this.staticJsonValuesCache.size} static JSON value(s)`);
   }
 
   private async refreshAliasesFromSources(trigger: 'initialize' | 'manual' | 'resync'): Promise<void> {
-    this.logger?.info?.(
+    this.logger?.debug?.(
       `${trigger === 'initialize' ? 'Loading' : 'Reloading'} aliases from sources`
     );
 
@@ -453,7 +453,7 @@ export class FumeMappingProvider {
       this.aliasResourceId = resourceId;
       this.aliasResourceMeta = meta;
 
-      this.logger?.info?.(
+      this.logger?.debug?.(
         `Loaded ${Object.keys(this.serverAliases).length} server alias(es)` +
           (this.aliasResourceId ? ` (ConceptMap id: ${this.aliasResourceId})` : '')
       );
@@ -461,7 +461,7 @@ export class FumeMappingProvider {
 
     if (this.config.mappingsFolder) {
       this.fileAliases = await this.loadFileAliases();
-      this.logger?.info?.(`Loaded ${Object.keys(this.fileAliases).length} file alias(es)`);
+      this.logger?.debug?.(`Loaded ${Object.keys(this.fileAliases).length} file alias(es)`);
     }
 
     this.rebuildAliasesCacheIfChanged();
