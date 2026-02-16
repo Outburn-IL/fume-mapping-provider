@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc",
     "test": "jest",
+    "test:light": "jest --config jest.unit.config.ts",
     "test:unit": "jest --testMatch='**/tests/unit/**/*.test.ts'",
     "test:integration": "jest --config jest.integration.config.ts",
     "test:watch": "jest --watch",
