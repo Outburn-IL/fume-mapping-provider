@@ -699,7 +699,6 @@ export class FumeMappingProvider {
             const raw = await this.userProvider.readStaticJsonValueRaw(key);
             const prevRaw = this.staticJsonRawCache.get(key);
             if (raw !== null && raw !== prevRaw) {
-              this.staticJsonRawCache.set(key, raw);
               await this.refreshStaticJsonValue(key);
             }
           } else if (isMappingFile) {
