@@ -417,6 +417,10 @@ describe('FumeMappingProvider', () => {
       searchServerMappings: jest.Mock;
     };
 
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
     beforeEach(() => {
       mockUserProvider = {
         loadMappings: jest.fn().mockResolvedValue(new Map()),
@@ -475,6 +479,76 @@ describe('FumeMappingProvider', () => {
       mockUserProvider.loadStaticJsonValue.mockResolvedValue(null);
       await provider.refreshStaticJsonValue('gone');
       expect(provider.getStaticJsonValue('gone')).toBeUndefined();
+    });
+
+    it('should update static JSON value when file changes are detected by polling', async () => {
+      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'fume-mapping-provider-staticjson-'));
+      const fooPath = path.join(tempDir, 'foo.json');
+
+      try {
+        await fs.writeFile(fooPath, '{"a":1}', 'utf-8');
+
+        const fileBackedUserProvider = {
+          loadMappings: jest.fn().mockResolvedValue(new Map()),
+          loadStaticJsonValues: jest.fn().mockResolvedValue(new Map()),
+          loadStaticJsonValuesWithRaw: jest.fn().mockImplementation(async () => {
+            const raw = await fs.readFile(fooPath, 'utf-8');
+            return {
+              values: new Map([
+                ['foo', {
+                  key: 'foo',
+                  value: JSON.parse(raw),
+                  sourceType: 'file' as const,
+                  source: path.resolve(fooPath)
+                }]
+              ]),
+              rawByKey: new Map([['foo', raw]])
+            };
+          }),
+          loadStaticJsonValue: jest.fn().mockImplementation(async (key: string) => {
+            if (key !== 'foo') {
+              return null;
+            }
+            const raw = await fs.readFile(fooPath, 'utf-8');
+            return {
+              key: 'foo',
+              value: JSON.parse(raw),
+              sourceType: 'file' as const,
+              source: path.resolve(fooPath)
+            };
+          }),
+          readStaticJsonValueRaw: jest.fn().mockImplementation(async (key: string) => {
+            if (key !== 'foo') {
+              return null;
+            }
+            return await fs.readFile(fooPath, 'utf-8');
+          }),
+          loadFileMapping: jest.fn().mockResolvedValue(null),
+          conditionalReadServerMapping: jest.fn().mockResolvedValue({ status: 404 }),
+          isValidStaticJsonValueKey: jest.fn().mockReturnValue(true),
+          isValidFileMappingKeyForPolling: jest.fn().mockReturnValue(true),
+          searchServerMappings: jest.fn().mockResolvedValue({ mappings: new Map(), metaByKey: new Map() })
+        };
+
+        (UserMappingProvider as unknown as jest.Mock).mockImplementation(() => fileBackedUserProvider);
+
+        const fileBackedProvider = new FumeMappingProvider({
+          mappingsFolder: tempDir,
+          filePollingIntervalMs: 0,
+          serverPollingIntervalMs: 0,
+          forcedResyncIntervalMs: 0
+        });
+
+        await fileBackedProvider.initialize();
+        expect(fileBackedProvider.getStaticJsonValue('foo')?.value).toEqual({ a: 1 });
+
+        await fs.writeFile(fooPath, '{"a":2}', 'utf-8');
+        await (fileBackedProvider as any).pollFileMappings();
+
+        expect(fileBackedProvider.getStaticJsonValue('foo')?.value).toEqual({ a: 2 });
+      } finally {
+        await fs.rm(tempDir, { recursive: true, force: true });
+      }
     });
   });
 
