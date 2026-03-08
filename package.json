@@ -38,6 +38,7 @@
     "@outburn/types": "^0.2.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.2.3",
+    "@types/range-parser": "^1.2.7",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "@typescript-eslint/parser": "^8.54.0",
     "eslint": "^9.39.2",
