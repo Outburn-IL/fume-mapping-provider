@@ -543,7 +543,7 @@ describe('FumeMappingProvider', () => {
         expect(fileBackedProvider.getStaticJsonValue('foo')?.value).toEqual({ a: 1 });
 
         await fs.writeFile(fooPath, '{"a":2}', 'utf-8');
-        await (fileBackedProvider as any).pollFileMappings();
+        await (fileBackedProvider as unknown as { pollFileMappings: () => Promise<void> }).pollFileMappings();
 
         expect(fileBackedProvider.getStaticJsonValue('foo')?.value).toEqual({ a: 2 });
       } finally {
