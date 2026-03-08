@@ -418,7 +418,7 @@ describe('FumeMappingProvider', () => {
     };
 
     afterEach(() => {
-      jest.restoreAllMocks();
+      jest.resetAllMocks();
     });
 
     beforeEach(() => {
@@ -542,7 +542,7 @@ describe('FumeMappingProvider', () => {
         await fileBackedProvider.initialize();
         expect(fileBackedProvider.getStaticJsonValue('foo')?.value).toEqual({ a: 1 });
 
-        await fs.writeFile(fooPath, '{"a":2}', 'utf-8');
+        await fs.writeFile(fooPath, '{"a": 2}', 'utf-8');
         await (fileBackedProvider as unknown as { pollFileMappings: () => Promise<void> }).pollFileMappings();
 
         expect(fileBackedProvider.getStaticJsonValue('foo')?.value).toEqual({ a: 2 });
@@ -560,8 +560,38 @@ describe('FumeMappingProvider', () => {
       loadAliasesWithMetadata?: jest.Mock;
     };
 
+    let mockUserProvider: {
+      loadMappings: jest.Mock;
+      loadStaticJsonValues: jest.Mock;
+      loadStaticJsonValuesWithRaw: jest.Mock;
+      loadStaticJsonValue: jest.Mock;
+      readStaticJsonValueRaw: jest.Mock;
+      loadFileMapping: jest.Mock;
+      conditionalReadServerMapping: jest.Mock;
+      isValidStaticJsonValueKey: jest.Mock;
+      isValidFileMappingKeyForPolling: jest.Mock;
+      searchServerMappings: jest.Mock;
+    };
+
     beforeEach(() => {
       mockClient = new FhirClient({ baseUrl: 'http://test.com', fhirVersion: 'R4' });
+
+      // Ensure Aliases tests don't rely on UserMappingProvider mock leakage
+      // from other describes (initialize() always loads user mappings too).
+      mockUserProvider = {
+        loadMappings: jest.fn().mockResolvedValue(new Map()),
+        loadStaticJsonValues: jest.fn().mockResolvedValue(new Map()),
+        loadStaticJsonValuesWithRaw: jest.fn().mockResolvedValue({ values: new Map(), rawByKey: new Map() }),
+        loadStaticJsonValue: jest.fn().mockResolvedValue(null),
+        readStaticJsonValueRaw: jest.fn().mockResolvedValue(null),
+        loadFileMapping: jest.fn().mockResolvedValue(null),
+        conditionalReadServerMapping: jest.fn().mockResolvedValue({ status: 404 }),
+        isValidStaticJsonValueKey: jest.fn().mockReturnValue(true),
+        isValidFileMappingKeyForPolling: jest.fn().mockReturnValue(true),
+        searchServerMappings: jest.fn().mockResolvedValue({ mappings: new Map(), metaByKey: new Map() })
+      };
+
+      (UserMappingProvider as unknown as jest.Mock).mockImplementation(() => mockUserProvider);
       
       mockAliasProvider = {
         loadAliases: jest.fn(),
@@ -732,7 +762,7 @@ describe('FumeMappingProvider', () => {
 
       expect(provider.getAliases()).toEqual(builtInAliases);
     });
-
+          jest.resetAllMocks();
     it('should load valid aliases.json and expose metadata source as absolute path', async () => {
       const folder = await createTempFolder();
       await writeAliasesJson(folder, { myAlias: 'myValue', other_alias: 'x', _private: 'y', '1b': 'z', '1_c': 'w' });
